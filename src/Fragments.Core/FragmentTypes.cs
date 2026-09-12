@@ -30,6 +30,22 @@ public sealed class FragmentTransform
     public float Yx { get; set; }
     public float Yy { get; set; } = 1f;
     public float Yz { get; set; }
+
+    public FragmentTransform Clone()
+    {
+        return new FragmentTransform
+        {
+            Px = Px,
+            Py = Py,
+            Pz = Pz,
+            Xx = Xx,
+            Xy = Xy,
+            Xz = Xz,
+            Yx = Yx,
+            Yy = Yy,
+            Yz = Yz
+        };
+    }
 }
 
 public sealed class FragmentAttribute

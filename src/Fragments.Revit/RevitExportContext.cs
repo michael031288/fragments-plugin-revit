@@ -13,13 +13,16 @@ internal sealed class RevitExportContext : IExportContext
     private readonly HashSet<uint> _exported = new HashSet<uint>();
     private readonly Dictionary<uint, ElementId> _elementLevels = new Dictionary<uint, ElementId>();
 
+    private readonly Transform _internalToShared;
+
     private uint? _currentLocalId;
     private int _currentMaterial;
     private RevitLinkInstance? _pendingLink;
 
-    public RevitExportContext(Document document, FragmentsModelBuilder builder, Dictionary<ElementId, uint> levelLocalIds)
+    public RevitExportContext(Document document, FragmentsModelBuilder builder, Transform internalToShared)
     {
         _builder = builder;
+        _internalToShared = internalToShared;
         _documents.Push(document);
         _transforms.Push(Transform.Identity);
         _currentMaterial = _builder.AddMaterial(180, 180, 180);
@@ -124,10 +127,7 @@ internal sealed class RevitExportContext : IExportContext
         var points = new List<Vec3>(polymesh.NumberOfPoints);
         foreach (var point in polymesh.GetPoints())
         {
-            points.Add(new Vec3(
-                (float)RevitFragmentExporter.ToMeters(point.X),
-                (float)RevitFragmentExporter.ToMeters(point.Y),
-                (float)RevitFragmentExporter.ToMeters(point.Z)));
+            points.Add(RevitSharedCoordinates.ToViewerPoint(point));
         }
 
         var indices = new List<int>(polymesh.NumberOfFacets * 3);
@@ -145,18 +145,7 @@ internal sealed class RevitExportContext : IExportContext
 
         TriangleCount += indices.Count / 3;
         var shell = _builder.AddTriangleShell(points, indices);
-        var world = new FragmentTransform
-        {
-            Px = RevitFragmentExporter.ToMeters(transform.Origin.X),
-            Py = RevitFragmentExporter.ToMeters(transform.Origin.Y),
-            Pz = RevitFragmentExporter.ToMeters(transform.Origin.Z),
-            Xx = (float)transform.BasisX.X,
-            Xy = (float)transform.BasisX.Y,
-            Xz = (float)transform.BasisX.Z,
-            Yx = (float)transform.BasisY.X,
-            Yy = (float)transform.BasisY.Y,
-            Yz = (float)transform.BasisY.Z
-        };
+        var world = RevitSharedCoordinates.ToViewerWorld(transform, _internalToShared);
         _builder.AddInstance(_currentLocalId.Value, shell, _currentMaterial, world);
     }
 

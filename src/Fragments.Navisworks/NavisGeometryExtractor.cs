@@ -84,10 +84,10 @@ internal static class NavisGeometryExtractor
         var points = new List<Vec3>(first.Points.Count);
         foreach (var point in first.Points)
         {
-            points.Add(new Vec3(
+            points.Add(CoordinateConversion.ToViewer(new Vec3(
                 (float)(point.X * toMeters),
                 (float)(point.Y * toMeters),
-                (float)(point.Z * toMeters)));
+                (float)(point.Z * toMeters))));
         }
 
         return (points, first.Indices, color, transform);
@@ -137,7 +137,7 @@ internal static class NavisGeometryExtractor
             var px = Convert.ToDouble(matrix.GetValue(13)) * toMeters;
             var py = Convert.ToDouble(matrix.GetValue(14)) * toMeters;
             var pz = Convert.ToDouble(matrix.GetValue(15)) * toMeters;
-            return new FragmentTransform
+            return CoordinateConversion.ToViewer(new FragmentTransform
             {
                 Px = px,
                 Py = py,
@@ -148,7 +148,7 @@ internal static class NavisGeometryExtractor
                 Yx = yx,
                 Yy = yy,
                 Yz = yz
-            };
+            });
         }
         catch
         {

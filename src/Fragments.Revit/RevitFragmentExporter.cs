@@ -16,10 +16,11 @@ public static class RevitFragmentExporter
 {
     public static ExportSummary Export(Document document, View3D view, string filePath, bool compress = true)
     {
+        var internalToShared = RevitSharedCoordinates.InternalToShared(document);
         var builder = new FragmentsModelBuilder
         {
             ModelGuid = document.CreationGUID.ToString(),
-            Metadata = "{\"schema\":\"IFC4\",\"origin\":\"Revit\",\"application\":\"Fragments.Revit\"}"
+            Metadata = RevitSharedCoordinates.Metadata(document, internalToShared)
         };
 
         var projectId = builder.AddItem("IFCPROJECT", document.ProjectInformation?.UniqueId, new[]
@@ -28,10 +29,7 @@ public static class RevitFragmentExporter
             new FragmentAttribute("Number", document.ProjectInformation?.Number ?? string.Empty, "IFCLABEL")
         });
 
-        var siteId = builder.AddItem("IFCSITE", attributes: new[]
-        {
-            new FragmentAttribute("Name", "Default Site", "IFCLABEL")
-        });
+        var siteId = builder.AddItem("IFCSITE", attributes: RevitSharedCoordinates.SiteAttributes(document, internalToShared));
 
         var buildingId = builder.AddItem("IFCBUILDING", attributes: new[]
         {
@@ -50,12 +48,12 @@ public static class RevitFragmentExporter
             var localId = builder.AddItem("IFCBUILDINGSTOREY", level.UniqueId, new[]
             {
                 new FragmentAttribute("Name", level.Name, "IFCLABEL"),
-                new FragmentAttribute("Elevation", ToMeters(level.Elevation), "IFCREAL")
+                new FragmentAttribute("Elevation", RevitSharedCoordinates.ElevationToSharedMeters(level.Elevation, internalToShared), "IFCREAL")
             });
             levelIds[level.Id] = localId;
         }
 
-        var context = new RevitExportContext(document, builder, levelIds);
+        var context = new RevitExportContext(document, builder, internalToShared);
         var exporter = new CustomExporter(document, context)
         {
             IncludeGeometricObjects = true,
@@ -71,6 +69,7 @@ public static class RevitFragmentExporter
         }
 
         builder.SpatialStructure = BuildSpatialTree(projectId, siteId, buildingId, levelIds, context.ElementLevels, context.ExportedLocalIds);
+        builder.RecenterFarFromOrigin();
 
         var bytes = builder.Build(compress);
         File.WriteAllBytes(filePath, bytes);

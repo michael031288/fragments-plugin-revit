@@ -19,7 +19,7 @@ public static class NavisFragmentExporter
         var builder = new FragmentsModelBuilder
         {
             ModelGuid = Guid.NewGuid().ToString(),
-            Metadata = "{\"schema\":\"IFC4\",\"origin\":\"Navisworks\",\"application\":\"Fragments.Navisworks\"}"
+            Metadata = "{\"schema\":\"IFC4\",\"origin\":\"Navisworks\",\"application\":\"Fragments.Navisworks\",\"units\":\"meters\",\"upAxis\":\"Y\",\"source\":\"world\"}"
         };
 
         var projectId = builder.AddItem("IFCPROJECT", attributes: new[]
@@ -72,6 +72,7 @@ public static class NavisFragmentExporter
 
         builder.AddRelation(projectId, "ContainsElements", exported);
         builder.SpatialStructure = BuildSpatial(projectId, exported);
+        builder.RecenterFarFromOrigin();
         var bytes = builder.Build(compress);
         File.WriteAllBytes(filePath, bytes);
 
