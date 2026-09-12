@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Fragments Exporter</Name>
+    <Description>Fragments Exporter for Revit</Description>
+    <Assembly>Fragments.Revit\Fragments.Revit.dll</Assembly>
+    <FullClassName>Fragments.Revit.App</FullClassName>
+    <ClientId>a7e5c4b1-9d2f-4c8a-b1e3-0f1a9c000001</ClientId>
+    <VendorId>FRAG</VendorId>
+    <VendorDescription>That Open Fragments exporter for Revit</VendorDescription>
+  </AddIn>
+</RevitAddIns>

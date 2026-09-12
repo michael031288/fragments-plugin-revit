@@ -1,0 +1,4 @@
+That Open engine_fragment @thatopen/fragments 3.4.7
+flatc / Google.FlatBuffers 25.2.10
+schema: packages/fragments/flatbuffers/index.fbs
+license: MIT

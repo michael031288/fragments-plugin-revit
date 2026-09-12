@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Fragments.Navisworks</RootNamespace>
+    <AssemblyName>Fragments.Navisworks</AssemblyName>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <NavisworksYear Condition="'$(NavisworksYear)' == ''">2024</NavisworksYear>
+    <NavisworksInstallDir Condition="'$(NavisworksInstallDir)' == ''">C:\Program Files\Autodesk\Navisworks Manage $(NavisworksYear)</NavisworksInstallDir>
+    <NavisworksApi>$(NavisworksInstallDir)\Autodesk.Navisworks.Api.dll</NavisworksApi>
+    <HasNavisworksApi>false</HasNavisworksApi>
+    <HasNavisworksApi Condition="Exists('$(NavisworksApi)')">true</HasNavisworksApi>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(HasNavisworksApi)' == 'true'">
+    <Compile Include="**\*.cs" Exclude="Disabled\Placeholder.cs" />
+    <ProjectReference Include="..\Fragments.Core\Fragments.Core.csproj" />
+    <Reference Include="Autodesk.Navisworks.Api">
+      <HintPath>$(NavisworksInstallDir)\Autodesk.Navisworks.Api.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Autodesk.Navisworks.ComApi">
+      <HintPath>$(NavisworksInstallDir)\Autodesk.Navisworks.ComApi.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Autodesk.Navisworks.Interop.ComApi">
+      <HintPath>$(NavisworksInstallDir)\Autodesk.Navisworks.Interop.ComApi.dll</HintPath>
+      <Private>false</Private>
+      <EmbedInteropTypes>true</EmbedInteropTypes>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(HasNavisworksApi)' != 'true'">
+    <Compile Include="Disabled\Placeholder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PackageContents.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="WarnMissingNavisworks" BeforeTargets="BeforeBuild" Condition="'$(HasNavisworksApi)' != 'true'">
+    <Warning Text="Navisworks API not found at '$(NavisworksInstallDir)'. Building a placeholder assembly. Install Navisworks Manage $(NavisworksYear) or pass /p:NavisworksInstallDir=..." />
+  </Target>
+</Project>

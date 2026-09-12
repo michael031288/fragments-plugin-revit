@@ -1,0 +1,8 @@
+{
+  "name": "fragments-validate",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pako": "2.1.0"
+  }
+}

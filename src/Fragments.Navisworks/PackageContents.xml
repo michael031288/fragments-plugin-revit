@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="Navisworks" ProductType="Application" Name="Fragments Exporter" Description="Export That Open Fragments (.frag) from Navisworks" AppVersion="1.0.0" FriendlyVersion="1.0.0" ProductCode="{c3e0b4a1-7f2d-4d8e-9a11-fragmentsnw0001}" UpgradeCode="{c3e0b4a1-7f2d-4d8e-9a11-fragmentsnw0001}" Author="FragmentsPluginRevit">
+  <CompanyDetails Name="Fragments Exporter" Url="https://docs.thatopen.com/" />
+  <Components Description="2024">
+    <RuntimeRequirements OS="Win64" Platform="NAVMAN|NAVSIM" SeriesMin="v21" SeriesMax="v21" />
+    <ComponentEntry AppName="FragmentsExporter" ModuleName="./Contents/Fragments.Navisworks.dll" AppDescription="Export .frag" LoadOnCommandInvocation="False" LoadOnAutoCADStartup="True" />
+  </Components>
+  <Components Description="2025">
+    <RuntimeRequirements OS="Win64" Platform="NAVMAN|NAVSIM" SeriesMin="v22" SeriesMax="v22" />
+    <ComponentEntry AppName="FragmentsExporter" ModuleName="./Contents/Fragments.Navisworks.dll" AppDescription="Export .frag" LoadOnCommandInvocation="False" LoadOnAutoCADStartup="True" />
+  </Components>
+  <Components Description="2026">
+    <RuntimeRequirements OS="Win64" Platform="NAVMAN|NAVSIM" SeriesMin="v23" SeriesMax="v23" />
+    <ComponentEntry AppName="FragmentsExporter" ModuleName="./Contents/Fragments.Navisworks.dll" AppDescription="Export .frag" LoadOnCommandInvocation="False" LoadOnAutoCADStartup="True" />
+  </Components>
+</ApplicationPackage>
