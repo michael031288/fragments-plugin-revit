@@ -24,7 +24,7 @@ public sealed class ExportFragmentsCommand : IExternalCommand
         var view = uiDoc.ActiveView as View3D ?? Find3DView(uiDoc.Document);
         if (view == null)
         {
-            TaskDialog.Show("Fragments", "Open a 3D view, then run Export .frag.");
+            Autodesk.Revit.UI.TaskDialog.Show("Fragments", "Open a 3D view, then run Export .frag.");
             return Result.Cancelled;
         }
 
@@ -44,7 +44,7 @@ public sealed class ExportFragmentsCommand : IExternalCommand
         try
         {
             var summary = RevitFragmentExporter.Export(uiDoc.Document, view, dialog.FileName);
-            TaskDialog.Show(
+            Autodesk.Revit.UI.TaskDialog.Show(
                 "Fragments",
                 $"Exported {summary.ElementCount} elements, {summary.TriangleCount} triangles\n{dialog.FileName}\n{summary.FileBytes:N0} bytes");
             return Result.Succeeded;
@@ -52,7 +52,7 @@ public sealed class ExportFragmentsCommand : IExternalCommand
         catch (Exception ex)
         {
             message = ex.Message;
-            TaskDialog.Show("Fragments export failed", ex.ToString());
+            Autodesk.Revit.UI.TaskDialog.Show("Fragments export failed", ex.ToString());
             return Result.Failed;
         }
     }
