@@ -25,6 +25,9 @@ jobs:
       - name: Test Fragments.Core
         run: dotnet test tests/Fragments.Core.Tests/Fragments.Core.Tests.csproj -c Release --verbosity normal
 
+      - name: Test Tessera.Core
+        run: dotnet test tests/Tessera.Core.Tests/Tessera.Core.Tests.csproj -c Release --verbosity normal
+
   build-revit:
     name: Build Revit ${{ matrix.revit_year }}
     runs-on: windows-latest
@@ -51,9 +54,35 @@ jobs:
           path: artifacts/revit/Fragments.Revit-${{ matrix.revit_year }}.zip
           if-no-files-found: error
 
+  build-tessera:
+    name: Build Tessera Revit ${{ matrix.revit_year }}
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        revit_year: [2025, 2026]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Build & Package Tessera Revit ${{ matrix.revit_year }}
+        run: powershell -ExecutionPolicy Bypass -File ./tools/pack-tessera-addin.ps1 -RevitYears ${{ matrix.revit_year }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tessera.Revit-${{ matrix.revit_year }}
+          path: artifacts/tessera/Tessera.Revit-${{ matrix.revit_year }}.zip
+          if-no-files-found: error
+
   release:
     name: Release
-    needs: [test, build-revit]
+    needs: [test, build-revit, build-tessera]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     permissions:

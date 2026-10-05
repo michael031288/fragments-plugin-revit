@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Tessera.Core</RootNamespace>
+    <AssemblyName>Tessera.Core</AssemblyName>
+    <Description>Writes a Tessera Rhino .3dm model (layers, user text, metres) without Rhino or an IFC file.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rhino3dm" Version="8.35.0" />
+  </ItemGroup>
+</Project>
