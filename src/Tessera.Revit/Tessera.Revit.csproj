@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RevitVersion Condition="'$(RevitVersion)' == ''">2025</RevitVersion>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Tessera.Revit</RootNamespace>
+    <AssemblyName>Tessera.Revit</AssemblyName>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\$(RevitVersion)\</OutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <DefineConstants>$(DefineConstants);REVIT$(RevitVersion)</DefineConstants>
+  </PropertyGroup>
+
+  <Target Name="RejectUnsupportedRevit" BeforeTargets="Restore">
+    <Error Condition="$(RevitVersion) &lt; 2025" Text="Tessera.Revit targets Revit 2025 and newer, which run on .NET 8." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitVersion).*" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitVersion).*" />
+    <ProjectReference Include="..\Tessera.Core\Tessera.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Tessera.Revit.addin" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CopyMeshoptNative" AfterTargets="Build">
+    <PropertyGroup>
+      <_MeshoptBuild>$(MSBuildThisFileDirectory)..\..\native\meshoptimizer\build\</_MeshoptBuild>
+      <_MeshoptName Condition="$([MSBuild]::IsOSPlatform('Windows'))">meshoptimizer.dll</_MeshoptName>
+      <_MeshoptName Condition="!$([MSBuild]::IsOSPlatform('Windows'))">libmeshoptimizer.so</_MeshoptName>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_MeshoptBuild)$(_MeshoptName)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MeshoptBuild)$(_MeshoptName)')" />
+  </Target>
+</Project>

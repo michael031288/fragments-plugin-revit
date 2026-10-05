@@ -7,8 +7,60 @@ Native C# exporters that write [That Open Fragments](https://docs.thatopen.com/f
 - **Fragments.Core** — `netstandard2.0` writer for the FlatBuffers schema (`file_identifier "0001"`), with pako-compatible RFC 1950 zlib compression.
 - **Fragments.Revit** — Ribbon button on the **Add-Ins** tab that exports the active 3D view (CustomExporter, view-aware, hierarchy, IFC parameter mapping).
 - **Fragments.Navisworks** — Add-in plugin that exports the current selection or the whole federated model.
+- **Tessera.Revit** — Revit 2025 and 2026 button that writes a Tessera compiled building (`.tsra`, format 0.6) directly from the active 3D view. No IFC file in between.
 
-Output files load directly in That Open viewers via `fragments.load(bytes)` (compressed, default) or `{ raw: true }` for uncompressed buffers.
+Output `.frag` files load directly in That Open viewers via `fragments.load(bytes)` (compressed, default) or `{ raw: true }` for uncompressed buffers. `.tsra` files load in the Tessera viewer.
+
+---
+
+## Tessera exporter for Revit 2025
+
+`Tessera.Revit` writes Tessera format 0.6 straight from the Revit view. The file is the compiled-building container (`TSRA`, minor version 6): paged zstd tables, world-chunk meshlets, and lossless canonical meshes. Geometry stays Z-up, in metres, on a 0.1 mm grid.
+
+- One `.tsra` for the active 3D view, including links
+- Entities for the project, site, building, storeys, and elements, with IFC class names (`IfcWall`, `IfcWindow`, …)
+- Aggregates and contained-in relations, plus Revit parameters. Lengths, areas, and volumes are stored in SI; other parameters stay text
+- Material colors, or the class color when Revit has no material (walls orange, windows red, roofs magenta, stairs green)
+- Mesh detail: coarse (LoD 2), medium (LoD 8), fine (LoD 15), or whatever the active view is using
+- Project coordinates by default, so the model stays near the origin. Shared coordinates can be baked in. The survey point is stored on the project either way
+- Full-detail render chunks and canonical blobs. Level-of-detail proxy meshes are not written
+
+The meshlet and canonical codecs are meshoptimizer 0.25, the same sources Tessera's `meshopt` 0.6.2 crate links. `meshoptimizer.dll` has to sit next to `Tessera.Core.dll`.
+
+### Build
+
+```powershell
+dotnet test tests\Tessera.Core.Tests\Tessera.Core.Tests.csproj
+
+dotnet build src\Tessera.Revit\Tessera.Revit.csproj -c Release -p:RevitVersion=2025
+dotnet build src\Tessera.Revit\Tessera.Revit.csproj -c Release -p:RevitVersion=2026
+
+.\tools\pack-tessera-addin.ps1
+```
+
+`pack-tessera-addin.ps1` writes `artifacts\tessera\Tessera.Revit-2025.zip` and `Tessera.Revit-2026.zip`. The Windows build compiles `meshoptimizer.dll` with MSVC.
+
+### Install
+
+Copy the zip contents into the matching user Addins folder:
+
+- **Revit 2025:** `%APPDATA%\Autodesk\Revit\Addins\2025`
+- **Revit 2026:** `%APPDATA%\Autodesk\Revit\Addins\2026`
+
+```text
+%APPDATA%\Autodesk\Revit\Addins\<year>\
+│
+├── Tessera.Revit.addin
+└── Tessera.Revit\
+    ├── Tessera.Revit.dll
+    ├── Tessera.Core.dll
+    ├── meshoptimizer.dll
+    └── Blake3.dll, ZstdSharp.dll
+```
+
+Unblock the DLLs if Windows marks them as downloaded. Revit 2026's manifest includes `<ManifestSettings>`; the 2025 manifest does not.
+
+Open a 3D view, then use **Add-Ins → Tessera → Export .tsra**. The button does not add its own ribbon tab.
 
 ---
 

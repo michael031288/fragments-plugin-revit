@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Tessera.Core</RootNamespace>
+    <AssemblyName>Tessera.Core</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>Writes a Tessera compiled building (.tsra, format 0.6).</Description>
+    <TesseraRoot>$(MSBuildThisFileDirectory)..\..\</TesseraRoot>
+    <MeshoptBuild>$(TesseraRoot)native\meshoptimizer\build\</MeshoptBuild>
+    <MeshoptFileName Condition="$([MSBuild]::IsOSPlatform('Windows'))">meshoptimizer.dll</MeshoptFileName>
+    <MeshoptFileName Condition="!$([MSBuild]::IsOSPlatform('Windows'))">libmeshoptimizer.so</MeshoptFileName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Blake3" Version="2.2.1" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Tessera.Core.Tests" />
+  </ItemGroup>
+
+  <Target Name="BuildMeshopt" BeforeTargets="BeforeBuild">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(TesseraRoot)tools\build-meshopt.ps1&quot;" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command="bash &quot;$(TesseraRoot)tools/build-meshopt.sh&quot;" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+  </Target>
+
+  <Target Name="IncludeMeshopt" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="BuildMeshopt">
+    <ItemGroup>
+      <ContentWithTargetPath Include="$(MeshoptBuild)$(MeshoptFileName)">
+        <TargetPath>$(MeshoptFileName)</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
+</Project>
