@@ -1,8 +1,7 @@
 namespace Tessera.Core;
 
 /// <summary>
-/// Document and object user-text keys written into every Tessera .3dm.
-/// Rhino shows these in Object Properties and Document User Text.
+/// Property names written into a Tessera .tsra from Revit.
 /// </summary>
 public static class TesseraKeys
 {

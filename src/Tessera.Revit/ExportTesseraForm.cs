@@ -1,16 +1,13 @@
 using System.Windows.Forms;
-using Tessera.Core;
 
 namespace Tessera.Revit;
 
 internal sealed class ExportTesseraForm : Form
 {
-    private readonly ComboBox _layers = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280 };
-    private readonly ComboBox _quality = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280 };
-    private readonly ComboBox _split = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280 };
-    private readonly CheckBox _shared = new CheckBox
+    private readonly ComboBox _quality = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280 };
+    private readonly CheckBox _shared = new()
     {
-        Text = "Bake shared coordinates (survey). Leave off to keep the model near Rhino's origin.",
+        Text = "Bake shared coordinates into the model. Leave off to keep geometry in project coordinates.",
         AutoSize = true,
         MaximumSize = new Size(460, 0)
     };
@@ -26,14 +23,6 @@ internal sealed class ExportTesseraForm : Form
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         Padding = new Padding(12);
 
-        _layers.Items.AddRange(new object[]
-        {
-            "Class and storey",
-            "IFC class",
-            "Building storey"
-        });
-        _layers.SelectedIndex = 0;
-
         _quality.Items.AddRange(new object[]
         {
             "Medium — Revit detail 8",
@@ -42,14 +31,6 @@ internal sealed class ExportTesseraForm : Form
             "Match the active view"
         });
         _quality.SelectedIndex = 0;
-
-        _split.Items.AddRange(new object[]
-        {
-            "Single file",
-            "One file per storey",
-            "One file per IFC class"
-        });
-        _split.SelectedIndex = 0;
 
         var ok = new Button { Text = "Export...", DialogResult = DialogResult.OK, AutoSize = true };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
@@ -75,24 +56,20 @@ internal sealed class ExportTesseraForm : Form
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        AddRow(layout, "Layers", _layers);
-        AddRow(layout, "Mesh detail", _quality);
-        AddRow(layout, "Files", _split);
-        layout.Controls.Add(_shared, 0, 3);
+        var row = layout.RowCount++;
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.Controls.Add(new Label { Text = "Mesh detail", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 8, 12, 0) }, 0, row);
+        _quality.Margin = new Padding(0, 4, 0, 0);
+        layout.Controls.Add(_quality, 1, row);
+        layout.Controls.Add(_shared, 0, 1);
         layout.SetColumnSpan(_shared, 2);
-        layout.Controls.Add(buttons, 0, 4);
+        layout.Controls.Add(buttons, 0, 2);
         layout.SetColumnSpan(buttons, 2);
         Controls.Add(layout);
     }
 
-    public TesseraExportSettings Settings => new TesseraExportSettings
+    public TesseraExportSettings Settings => new()
     {
-        LayerMode = _layers.SelectedIndex switch
-        {
-            1 => TesseraLayerMode.Class,
-            2 => TesseraLayerMode.Storey,
-            _ => TesseraLayerMode.ClassAndStorey
-        },
         LevelOfDetail = _quality.SelectedIndex switch
         {
             1 => 2,
@@ -100,21 +77,6 @@ internal sealed class ExportTesseraForm : Form
             3 => -1,
             _ => 8
         },
-        Split = _split.SelectedIndex switch
-        {
-            1 => TesseraSplitMode.ByStorey,
-            2 => TesseraSplitMode.ByClass,
-            _ => TesseraSplitMode.None
-        },
         UseSharedCoordinates = _shared.Checked
     };
-
-    private static void AddRow(TableLayoutPanel layout, string label, Control editor)
-    {
-        var row = layout.RowCount++;
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 8, 12, 0) }, 0, row);
-        editor.Margin = new Padding(0, 4, 0, 0);
-        layout.Controls.Add(editor, 1, row);
-    }
 }

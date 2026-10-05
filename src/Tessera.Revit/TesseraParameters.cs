@@ -4,6 +4,14 @@ using Tessera.Core;
 
 namespace Tessera.Revit;
 
+internal sealed class TesseraParameterValue
+{
+    public required string Name { get; init; }
+    public string? Text { get; init; }
+    public double? Si { get; init; }
+    public string? IfcType { get; init; }
+}
+
 internal static class TesseraParameters
 {
     private const int MaxParameters = 48;
@@ -17,7 +25,7 @@ internal static class TesseraParameters
         "Schedule Level"
     };
 
-    public static void Collect(Element element, IDictionary<string, string> target)
+    public static void Collect(Element element, ICollection<TesseraParameterValue> target)
     {
         Add(target, TesseraKeys.RevitUniqueId, element.UniqueId);
         Add(target, TesseraKeys.RevitElementId, element.Id.Value.ToString(CultureInfo.InvariantCulture));
@@ -71,19 +79,25 @@ internal static class TesseraParameters
         return null;
     }
 
-    private static void AddParameters(Element element, IDictionary<string, string> target, string prefix)
+    private static void AddParameters(Element element, ICollection<TesseraParameterValue> target, string prefix)
     {
-        var added = 0;
+        var added = target.Count;
         foreach (Parameter parameter in element.Parameters)
         {
-            if (added >= MaxParameters || parameter == null || !parameter.HasValue)
+            if (target.Count - added >= MaxParameters || parameter == null || !parameter.HasValue)
             {
                 continue;
             }
 
             var name = prefix + parameter.Definition?.Name;
-            if (string.IsNullOrWhiteSpace(name) || name == prefix + "Type Id")
+            if (string.IsNullOrWhiteSpace(name) || name == prefix + "Type Id" || target.Any(item => item.Name == name))
             {
+                continue;
+            }
+
+            if (TryMeasure(parameter, out var si, out var ifcType))
+            {
+                target.Add(new TesseraParameterValue { Name = name, Si = si, IfcType = ifcType });
                 continue;
             }
 
@@ -101,21 +115,58 @@ internal static class TesseraParameters
                 // Skip parameters Revit refuses to read.
             }
 
-            if (Add(target, name, value))
-            {
-                added++;
-            }
+            Add(target, name, value);
         }
     }
 
-    private static bool Add(IDictionary<string, string> target, string key, string? value)
+    private static bool TryMeasure(Parameter parameter, out double si, out string ifcType)
     {
-        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value) || target.ContainsKey(key))
+        si = 0;
+        ifcType = "";
+        try
+        {
+            if (parameter.StorageType != StorageType.Double || parameter.Definition == null)
+            {
+                return false;
+            }
+
+            var typeId = parameter.Definition.GetDataType()?.TypeId;
+            if (typeId == SpecTypeId.Length.TypeId)
+            {
+                si = UnitUtils.ConvertFromInternalUnits(parameter.AsDouble(), UnitTypeId.Meters);
+                ifcType = "IFCLENGTHMEASURE";
+                return true;
+            }
+
+            if (typeId == SpecTypeId.Area.TypeId)
+            {
+                si = UnitUtils.ConvertFromInternalUnits(parameter.AsDouble(), UnitTypeId.SquareMeters);
+                ifcType = "IFCAREAMEASURE";
+                return true;
+            }
+
+            if (typeId == SpecTypeId.Volume.TypeId)
+            {
+                si = UnitUtils.ConvertFromInternalUnits(parameter.AsDouble(), UnitTypeId.CubicMeters);
+                ifcType = "IFCVOLUMEMEASURE";
+                return true;
+            }
+        }
+        catch
         {
             return false;
         }
 
-        target[key] = value;
-        return true;
+        return false;
+    }
+
+    private static void Add(ICollection<TesseraParameterValue> target, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value) || target.Any(item => item.Name == key))
+        {
+            return;
+        }
+
+        target.Add(new TesseraParameterValue { Name = key, Text = value });
     }
 }

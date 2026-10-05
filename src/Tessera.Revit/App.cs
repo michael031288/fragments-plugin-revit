@@ -10,11 +10,11 @@ public sealed class App : IExternalApplication
         var panel = application.CreateRibbonPanel("Tessera");
         var button = new PushButtonData(
             "ExportTessera",
-            "Export\n.3dm",
+            "Export\n.tsra",
             Assembly.GetExecutingAssembly().Location,
             typeof(ExportTesseraCommand).FullName)
         {
-            ToolTip = "Export the active 3D view to a Tessera Rhino model (.3dm) with class and storey layers."
+            ToolTip = "Export the active 3D view to a Tessera compiled building (.tsra, format 0.6)."
         };
 
         panel.AddItem(button);

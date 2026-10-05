@@ -1,5 +1,4 @@
 using System.IO;
-using System.Text;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -22,7 +21,7 @@ public sealed class ExportTesseraCommand : IExternalCommand
 
         if (uiDoc.ActiveView is not View3D view || view.IsTemplate)
         {
-            Autodesk.Revit.UI.TaskDialog.Show("Tessera", "Open a 3D view, then run Export .3dm.");
+            Autodesk.Revit.UI.TaskDialog.Show("Tessera", "Open a 3D view, then run Export .tsra.");
             return Result.Cancelled;
         }
 
@@ -35,8 +34,8 @@ public sealed class ExportTesseraCommand : IExternalCommand
         using var dialog = new FormSaveFileDialog
         {
             Title = "Export Tessera model",
-            Filter = "Tessera Rhino model (*.3dm)|*.3dm",
-            FileName = SanitizeFileName(uiDoc.Document.Title) + ".3dm",
+            Filter = "Tessera model (*.tsra)|*.tsra",
+            FileName = SanitizeFileName(uiDoc.Document.Title) + ".tsra",
             OverwritePrompt = true
         };
 
@@ -48,15 +47,9 @@ public sealed class ExportTesseraCommand : IExternalCommand
         try
         {
             var summary = TesseraRevitExporter.Export(uiDoc.Document, view, dialog.FileName, options.Settings);
-            var files = new StringBuilder();
-            foreach (var file in summary.Files)
-            {
-                files.AppendLine(file);
-            }
-
             Autodesk.Revit.UI.TaskDialog.Show(
                 "Tessera",
-                $"Exported {summary.ElementCount} elements, {summary.TriangleCount} triangles\n{summary.FileBytes:N0} bytes\n\n{files}");
+                $"Exported {summary.ElementCount} elements, {summary.TriangleCount} triangles\n{summary.FileBytes:N0} bytes\n\n{summary.File}");
             return Result.Succeeded;
         }
         catch (Exception ex)

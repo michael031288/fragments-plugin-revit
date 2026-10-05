@@ -41,9 +41,9 @@ foreach ($year in $RevitYears) {
         Copy-Item $file.FullName $packagePluginDir -Force
     }
 
-    $native = Join-Path $packagePluginDir "librhino3dm_native.dll"
+    $native = Join-Path $packagePluginDir "meshoptimizer.dll"
     if (-not (Test-Path $native)) {
-        throw "librhino3dm_native.dll was not copied for Revit $year. Rhino cannot open the exporter without it."
+        throw "meshoptimizer.dll was not copied for Revit $year. Tessera cannot encode .tsra geometry without it."
     }
 
     $addinXml = @"
@@ -51,7 +51,7 @@ foreach ($year in $RevitYears) {
 <RevitAddIns>
   <AddIn Type="Application">
     <Name>Tessera Exporter</Name>
-    <Description>Export the active 3D view to a Tessera Rhino .3dm model.</Description>
+    <Description>Export the active 3D view to a Tessera compiled building (.tsra).</Description>
     <Assembly>Tessera.Revit\Tessera.Revit.dll</Assembly>
     <FullClassName>Tessera.Revit.App</FullClassName>
     <ClientId>c4e8a1d2-6b3f-4e90-9c17-2a5f8d000202</ClientId>

@@ -11,7 +11,6 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <DefineConstants>$(DefineConstants);REVIT$(RevitVersion)</DefineConstants>
-    <Rhino3dmVersion>8.35.0</Rhino3dmVersion>
   </PropertyGroup>
 
   <Target Name="RejectUnsupportedRevit" BeforeTargets="Restore">
@@ -28,12 +27,12 @@
     <None Include="Tessera.Revit.addin" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <Target Name="CopyRhinoNative" AfterTargets="Build">
+  <Target Name="CopyMeshoptNative" AfterTargets="Build">
     <PropertyGroup>
-      <_RhinoNative>$(NuGetPackageRoot)rhino3dm\$(Rhino3dmVersion)\runtimes\win-x64\native\librhino3dm_native.dll</_RhinoNative>
+      <_MeshoptBuild>$(MSBuildThisFileDirectory)..\..\native\meshoptimizer\build\</_MeshoptBuild>
+      <_MeshoptName Condition="$([MSBuild]::IsOSPlatform('Windows'))">meshoptimizer.dll</_MeshoptName>
+      <_MeshoptName Condition="!$([MSBuild]::IsOSPlatform('Windows'))">libmeshoptimizer.so</_MeshoptName>
     </PropertyGroup>
-    <Error Condition="!Exists('$(_RhinoNative)')" Text="Could not find librhino3dm_native.dll at $(_RhinoNative). Restore the Rhino3dm package first." />
-    <Copy SourceFiles="$(_RhinoNative)" DestinationFiles="$(OutputPath)librhino3dm_native.dll" SkipUnchangedFiles="true" />
-    <RemoveDir Directories="$(OutputPath)runtimes" />
+    <Copy SourceFiles="$(_MeshoptBuild)$(_MeshoptName)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MeshoptBuild)$(_MeshoptName)')" />
   </Target>
 </Project>

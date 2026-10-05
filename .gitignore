@@ -12,6 +12,7 @@ tools/reference/*.ifc
 tools/reference/*.frag
 tools/reference/*.json
 artifacts/
+native/meshoptimizer/build/
 src/Fragments.Revit.Installer/Payload/
 src/Fragments.Revit.Installer/payload.zip
 .idea/

@@ -3,7 +3,7 @@ using System.Drawing;
 namespace Tessera.Core;
 
 /// <summary>
-/// Stable layer colors so a Tessera model opens already sorted:
+/// Surface colors used when Revit does not supply a material:
 /// walls orange, windows red, roofs magenta, stairs green.
 /// </summary>
 public static class TesseraClassPalette

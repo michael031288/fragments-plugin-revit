@@ -1,4 +1,3 @@
-using System.Globalization;
 using Autodesk.Revit.DB;
 using Tessera.Core;
 
@@ -6,12 +5,19 @@ namespace Tessera.Revit;
 
 internal sealed class TesseraExportContext : IExportContext
 {
-    private readonly TesseraModel _model;
-    private readonly Stack<Document> _documents = new Stack<Document>();
-    private readonly Stack<Transform> _transforms = new Stack<Transform>();
+    private readonly TsraModel _model;
+    private readonly string _projectName;
+    private readonly Stack<Document> _documents = new();
+    private readonly Stack<Transform> _transforms = new();
     private readonly int _levelOfDetail;
-    private readonly Dictionary<string, TesseraMesh> _meshes = new Dictionary<string, TesseraMesh>(StringComparer.Ordinal);
+    private readonly Dictionary<string, uint> _storeys = new(StringComparer.Ordinal);
+    private readonly List<MeshDraft> _meshes = new();
+    private readonly List<TesseraParameterValue> _parameters = new();
 
+    private uint _project;
+    private uint _site;
+    private uint _building;
+    private uint _step = 1;
     private Element? _element;
     private Transform _elementFrame = Transform.Identity;
     private RevitLinkInstance? _pendingLink;
@@ -23,19 +29,30 @@ internal sealed class TesseraExportContext : IExportContext
     private string? _materialName;
     private bool _hasMaterial;
 
-    public TesseraExportContext(Document document, TesseraModel model, Transform baseTransform, int levelOfDetail)
+    public TesseraExportContext(Document document, TsraModel model, string projectName, Transform baseTransform, int levelOfDetail)
     {
         _model = model;
+        _projectName = string.IsNullOrWhiteSpace(projectName) ? "Project" : projectName;
         _levelOfDetail = levelOfDetail;
         _documents.Push(document);
         _transforms.Push(baseTransform);
     }
 
-    public int TriangleCount { get; private set; }
+    public uint Project => _project;
+
+    public int ElementCount { get; private set; }
 
     public bool IsCanceled() => false;
 
-    public bool Start() => true;
+    public bool Start()
+    {
+        _project = _model.AddEntity("IfcProject", _projectName, TsraModel.StableId("project:" + _projectName), NextStep(), null, TsraModel.NoEntity, null);
+        _site = _model.AddEntity("IfcSite", "Site", TsraModel.StableId("site:" + _projectName), NextStep(), null, TsraModel.NoEntity, null);
+        _building = _model.AddEntity("IfcBuilding", "Building", TsraModel.StableId("building:" + _projectName), NextStep(), null, TsraModel.NoEntity, null);
+        _model.AddAggregate(_project, _site);
+        _model.AddAggregate(_site, _building);
+        return true;
+    }
 
     public void Finish()
     {
@@ -62,6 +79,7 @@ internal sealed class TesseraExportContext : IExportContext
         _pendingLink = element as RevitLinkInstance;
         _element = null;
         _meshes.Clear();
+        _parameters.Clear();
         _hasMaterial = false;
 
         if (element == null || _pendingLink != null || element is Autodesk.Revit.DB.View)
@@ -82,41 +100,62 @@ internal sealed class TesseraExportContext : IExportContext
 
     public void OnElementEnd(ElementId elementId)
     {
-        if (_element != null && _meshes.Count > 0)
+        if (_element != null && _meshes.Exists(mesh => mesh.Coordinates.Count > 0))
         {
             var ifcClass = IfcCategoryMap.For(_element);
             var level = TesseraParameters.FindLevel(_element);
-            var tesseraElement = new TesseraElement
-            {
-                Name = SafeName(_element),
-                IfcClass = ifcClass,
-                Storey = level?.Name ?? "Unassigned"
-            };
-            TesseraParameters.Collect(_element, tesseraElement.UserStrings);
+            double? elevation = null;
+            var storeyName = "Unassigned";
             if (level != null)
             {
-                var elevation = _elementFrame.OfPoint(new XYZ(0, 0, level.Elevation));
-                tesseraElement.UserStrings[TesseraKeys.StoreyElevation] = TesseraRevitExporter.ToMeters(elevation.Z)
-                    .ToString("G17", CultureInfo.InvariantCulture);
+                storeyName = string.IsNullOrWhiteSpace(level.Name) ? "Unassigned" : level.Name;
+                var point = _elementFrame.OfPoint(new XYZ(0, 0, level.Elevation));
+                elevation = TesseraRevitExporter.ToMeters(point.Z);
             }
 
-            foreach (var mesh in _meshes.Values)
+            var storey = Storey(storeyName, elevation);
+            TesseraParameters.Collect(_element, _parameters);
+            var typeName = _parameters.Find(item => item.Name == TesseraKeys.TypeName)?.Text;
+            var material = _meshes.Select(mesh => mesh.MaterialName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+            var entity = _model.AddEntity(
+                ifcClass,
+                SafeName(_element),
+                GlobalId(_element.UniqueId),
+                NextStep(),
+                typeName,
+                storey,
+                material);
+            _model.AddContainedIn(storey, entity);
+            foreach (var parameter in _parameters)
             {
-                if (mesh.TriangleCount > 0)
+                if (parameter.Si is double si)
                 {
-                    tesseraElement.Meshes.Add(mesh);
+                    _model.AddRealProperty(entity, "Revit", parameter.Name, si, parameter.IfcType);
+                }
+                else
+                {
+                    _model.AddTextProperty(entity, "Revit", parameter.Name, parameter.Text);
                 }
             }
 
-            if (tesseraElement.Meshes.Count > 0)
+            foreach (var mesh in _meshes)
             {
-                _model.Elements.Add(tesseraElement);
+                if (mesh.Coordinates.Count == 0)
+                {
+                    continue;
+                }
+
+                var style = _model.AddStyle(mesh.R, mesh.G, mesh.B, mesh.A);
+                _model.AddMesh(entity, style, mesh.Coordinates);
             }
+
+            ElementCount++;
         }
 
         _element = null;
         _pendingLink = null;
         _meshes.Clear();
+        _parameters.Clear();
     }
 
     public RenderNodeAction OnInstanceBegin(InstanceNode node)
@@ -203,17 +242,19 @@ internal sealed class TesseraExportContext : IExportContext
         }
 
         var key = (_hasMaterial ? _materialName ?? "material" : "class") + ":" + _red + "," + _green + "," + _blue + "," + _alpha;
-        if (!_meshes.TryGetValue(key, out var mesh))
+        var mesh = _meshes.Find(item => item.Key == key);
+        if (mesh == null)
         {
-            mesh = new TesseraMesh
+            mesh = new MeshDraft
             {
+                Key = key,
                 R = _red,
                 G = _green,
                 B = _blue,
                 A = _alpha,
                 MaterialName = _materialName
             };
-            _meshes[key] = mesh;
+            _meshes.Add(mesh);
         }
 
         var transform = _transforms.Peek();
@@ -226,11 +267,9 @@ internal sealed class TesseraExportContext : IExportContext
                 continue;
             }
 
-            var a = ToMeters(transform.OfPoint(points[facet.V1]));
-            var b = ToMeters(transform.OfPoint(points[facet.V2]));
-            var c = ToMeters(transform.OfPoint(points[facet.V3]));
-            mesh.AddTriangle(a.X, a.Y, a.Z, b.X, b.Y, b.Z, c.X, c.Y, c.Z);
-            TriangleCount++;
+            Add(mesh, transform.OfPoint(points[facet.V1]));
+            Add(mesh, transform.OfPoint(points[facet.V2]));
+            Add(mesh, transform.OfPoint(points[facet.V3]));
         }
     }
 
@@ -242,12 +281,41 @@ internal sealed class TesseraExportContext : IExportContext
     {
     }
 
-    private static XYZ ToMeters(XYZ feet)
+    private uint Storey(string name, double? elevation)
     {
-        return new XYZ(
-            TesseraRevitExporter.ToMeters(feet.X),
-            TesseraRevitExporter.ToMeters(feet.Y),
-            TesseraRevitExporter.ToMeters(feet.Z));
+        if (_storeys.TryGetValue(name, out var existing))
+        {
+            return existing;
+        }
+
+        var entity = _model.AddEntity("IfcBuildingStorey", name, TsraModel.StableId("storey:" + _projectName + ":" + name), NextStep(), null, TsraModel.NoEntity, null);
+        _storeys[name] = entity;
+        _model.AddAggregate(_building, entity);
+        if (elevation is double metres)
+        {
+            _model.AddRealProperty(entity, "Revit", TesseraKeys.StoreyElevation, metres, "IFCLENGTHMEASURE");
+        }
+
+        return entity;
+    }
+
+    private uint NextStep() => _step++;
+
+    private static void Add(MeshDraft mesh, XYZ feet)
+    {
+        mesh.Coordinates.Add(TesseraRevitExporter.ToMeters(feet.X));
+        mesh.Coordinates.Add(TesseraRevitExporter.ToMeters(feet.Y));
+        mesh.Coordinates.Add(TesseraRevitExporter.ToMeters(feet.Z));
+    }
+
+    private static byte[] GlobalId(string? uniqueId)
+    {
+        if (!string.IsNullOrEmpty(uniqueId) && uniqueId.Length >= 36 && Guid.TryParse(uniqueId.AsSpan(0, 36), out var guid))
+        {
+            return guid.ToByteArray();
+        }
+
+        return TsraModel.StableId(uniqueId ?? "element");
     }
 
     private static string SafeName(Element element)
@@ -265,5 +333,16 @@ internal sealed class TesseraExportContext : IExportContext
         }
 
         return element.Category?.Name ?? "Element";
+    }
+
+    private sealed class MeshDraft
+    {
+        public string Key = "";
+        public byte R;
+        public byte G;
+        public byte B;
+        public byte A;
+        public string? MaterialName;
+        public List<double> Coordinates { get; } = new();
     }
 }
