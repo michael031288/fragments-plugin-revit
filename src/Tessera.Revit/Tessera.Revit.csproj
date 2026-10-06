@@ -35,4 +35,11 @@
     </PropertyGroup>
     <Copy SourceFiles="$(_MeshoptBuild)$(_MeshoptName)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MeshoptBuild)$(_MeshoptName)')" />
   </Target>
+
+  <Target Name="CopyBlake3Native" AfterTargets="CopyFilesToOutputDirectory">
+    <PropertyGroup>
+      <_Blake3Native>$(OutputPath)runtimes\win-x64\native\blake3_dotnet.dll</_Blake3Native>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_Blake3Native)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="Exists('$(_Blake3Native)')" />
+  </Target>
 </Project>

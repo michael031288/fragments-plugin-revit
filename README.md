@@ -55,6 +55,7 @@ Copy the zip contents into the matching user Addins folder:
     ├── Tessera.Revit.dll
     ├── Tessera.Core.dll
     ├── meshoptimizer.dll
+    ├── blake3_dotnet.dll
     └── Blake3.dll, ZstdSharp.dll
 ```
 
