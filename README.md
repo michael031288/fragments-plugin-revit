@@ -55,8 +55,7 @@ Copy the zip contents into the matching user Addins folder:
     ├── Tessera.Revit.dll
     ├── Tessera.Core.dll
     ├── meshoptimizer.dll
-    ├── blake3_dotnet.dll
-    └── Blake3.dll, ZstdSharp.dll
+    └── ZstdSharp.dll
 ```
 
 Unblock the DLLs if Windows marks them as downloaded. Revit 2026's manifest includes `<ManifestSettings>`; the 2025 manifest does not.

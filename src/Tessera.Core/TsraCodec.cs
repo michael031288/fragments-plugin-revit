@@ -1,59 +1,18 @@
-using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text;
-using Blake3;
 using ZstdSharp;
 
 namespace Tessera.Core;
 
 internal static class TsraHash
 {
-    static TsraHash()
-    {
-        // Revit loads this add-in from its own folder, so the default probe
-        // (the Revit install directory) never sees blake3_dotnet.dll.
-        NativeLibrary.SetDllImportResolver(typeof(Hasher).Assembly, ResolveBlake3);
-    }
-
     public static byte[] Hash16(ReadOnlySpan<byte> data)
     {
-        return Hasher.Hash(data).AsSpan().Slice(0, 16).ToArray();
+        return ManagedBlake3.Hash(data).AsSpan(0, 16).ToArray();
     }
 
     public static string Hex(ReadOnlySpan<byte> data)
     {
-        return Convert.ToHexString(Hasher.Hash(data).AsSpan()).ToLowerInvariant();
-    }
-
-    private static IntPtr ResolveBlake3(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
-    {
-        if (libraryName.IndexOf("blake3", StringComparison.OrdinalIgnoreCase) < 0)
-        {
-            return IntPtr.Zero;
-        }
-
-        var fileName = OperatingSystem.IsWindows() ? "blake3_dotnet.dll" : "libblake3_dotnet.so";
-        var dir = Path.GetDirectoryName(typeof(TsraHash).Assembly.Location);
-        if (string.IsNullOrEmpty(dir))
-        {
-            return IntPtr.Zero;
-        }
-
-        var rid = OperatingSystem.IsWindows() ? "win-x64" : "linux-x64";
-        var candidates = new[]
-        {
-            Path.Combine(dir, fileName),
-            Path.Combine(dir, "runtimes", rid, "native", fileName)
-        };
-        foreach (var candidate in candidates)
-        {
-            if (File.Exists(candidate))
-            {
-                return NativeLibrary.Load(candidate);
-            }
-        }
-
-        return IntPtr.Zero;
+        return Convert.ToHexString(ManagedBlake3.Hash(data)).ToLowerInvariant();
     }
 }
 

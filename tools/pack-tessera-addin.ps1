@@ -46,11 +46,6 @@ foreach ($year in $RevitYears) {
         throw "meshoptimizer.dll was not copied for Revit $year. Tessera cannot encode .tsra geometry without it."
     }
 
-    $blake3 = Join-Path $packagePluginDir "blake3_dotnet.dll"
-    if (-not (Test-Path $blake3)) {
-        throw "blake3_dotnet.dll was not copied for Revit $year. Tessera cannot hash a .tsra file without it."
-    }
-
     $addinXml = @"
 <?xml version="1.0" encoding="utf-8"?>
 <RevitAddIns>
