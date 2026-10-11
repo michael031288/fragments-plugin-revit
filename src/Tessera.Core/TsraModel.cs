@@ -354,6 +354,32 @@ public sealed class TsraModel
         set.Add(new PropertyValue { Name = name, Text = value });
     }
 
+    /// <summary>Name of the set holding an entity's own IFC attributes (format set kind 2).</summary>
+    public const string AttributeSetName = "Attributes";
+
+    private const byte PropertySetKind = 0;
+    private const byte AttributeSetKind = 2;
+
+    /// <summary>
+    /// One of the entity's IFC attributes (not GlobalId), such as <c>Tag</c> or <c>ObjectType</c>.
+    /// Tessera keeps them in the <c>Attributes</c> set, which types do not pass to occurrences.
+    /// </summary>
+    public void AddAttribute(uint entity, string name, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var set = Properties(entity, AttributeSetName, AttributeSetKind);
+        if (set.Exists(item => item.Name == name))
+        {
+            return;
+        }
+
+        set.Add(new PropertyValue { Name = name, Text = value });
+    }
+
     public void AddRealProperty(uint entity, string setName, string name, double value, string? ifcType)
     {
         if (string.IsNullOrWhiteSpace(name) || !double.IsFinite(value))
@@ -914,11 +940,11 @@ public sealed class TsraModel
             }
 
             var name = Intern(group.Name);
-            var key = SetKey(0, name, pairs, types);
+            var key = SetKey(group.Kind, name, pairs, types);
             if (!setIds.TryGetValue(key, out var setId))
             {
                 setId = (uint)sets.Count;
-                sets.Add(new StoredSet { Name = name, Pairs = pairs, Types = types });
+                sets.Add(new StoredSet { Kind = group.Kind, Name = name, Pairs = pairs, Types = types });
                 setIds[key] = setId;
             }
 
@@ -954,11 +980,11 @@ public sealed class TsraModel
                 types.Add(p < set.Types.Count ? set.Types[p] : 0);
             }
 
-            var key = SetKey(0, set.Name, names.Select(item => (item, 0u)).ToList(), types);
+            var key = SetKey(set.Kind, set.Name, names.Select(item => (item, 0u)).ToList(), types);
             if (!shapeIds.TryGetValue(key, out var shape))
             {
                 shape = (uint)shapes.Count;
-                shapes.Add((0, set.Name, names, types));
+                shapes.Add((set.Kind, set.Name, names, types));
                 shapeIds[key] = shape;
             }
 
@@ -1263,7 +1289,7 @@ public sealed class TsraModel
         return builder.ToString();
     }
 
-    private List<PropertyValue> Properties(uint entity, string setName)
+    private List<PropertyValue> Properties(uint entity, string setName, byte kind = PropertySetKind)
     {
         if (entity >= (uint)_entities.Count)
         {
@@ -1271,10 +1297,15 @@ public sealed class TsraModel
         }
 
         setName = string.IsNullOrWhiteSpace(setName) ? "Revit" : setName;
+        if (kind == PropertySetKind && setName == AttributeSetName)
+        {
+            throw new ArgumentException("Use AddAttribute for IFC attributes.", nameof(setName));
+        }
+
         if (!_propertyIndex.TryGetValue((entity, setName), out var index))
         {
             index = _propertySets.Count;
-            _propertySets.Add(new PropertySet { Entity = entity, Name = setName, Values = new List<PropertyValue>() });
+            _propertySets.Add(new PropertySet { Entity = entity, Name = setName, Kind = kind, Values = new List<PropertyValue>() });
             _propertyIndex[(entity, setName)] = index;
         }
 
@@ -1337,6 +1368,7 @@ public sealed class TsraModel
     private sealed class PropertySet
     {
         public uint Entity;
+        public byte Kind;
         public string Name = "";
         public List<PropertyValue> Values = new();
     }
@@ -1351,6 +1383,7 @@ public sealed class TsraModel
 
     private sealed class StoredSet
     {
+        public byte Kind;
         public uint Name;
         public List<(uint Name, uint Value)> Pairs = new();
         public List<uint> Types = new();

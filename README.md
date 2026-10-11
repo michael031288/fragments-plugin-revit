@@ -19,7 +19,7 @@ Output `.frag` files load directly in That Open viewers via `fragments.load(byte
 
 - One `.tsra` for the active 3D view, including links
 - Entities for the project, site, building, storeys, elements, and one type object per Revit type (`IfcWall` → `IfcWallType`). The type column is that type object's entity index, which is what the Tessera reader accepts
-- Aggregates and contained-in relations, plus Revit parameters. Lengths, areas, and volumes are stored in SI; other parameters stay text
+- Aggregates and contained-in relations, plus Revit parameters laid out as Revit's IFC exporter writes them: instance parameters in `PSet_Revit_<group>` sets, type parameters on the type object in `PSet_Revit_Type_<group>` sets (elements inherit them), and the ElementId as each element's and type's IFC `Tag`. Tessera's mapping (ADR 0037) works on the `.tsra` as it does on a Revit IFC export. Lengths, areas, and volumes are stored in SI; other parameters stay text
 - Material colors, or the class color when Revit has no material (walls orange, windows red, roofs magenta, stairs green)
 - Mesh detail: coarse (LoD 2), medium (LoD 8), fine (LoD 15), or whatever the active view is using
 - Project coordinates by default, so the model stays near the origin. Shared coordinates can be baked in. The survey point is stored on the project either way

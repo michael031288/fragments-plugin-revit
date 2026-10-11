@@ -1,3 +1,4 @@
+using System.Globalization;
 using Autodesk.Revit.DB;
 using Tessera.Core;
 
@@ -117,9 +118,8 @@ internal sealed class TesseraExportContext : IExportContext
 
             var storey = Storey(storeyName, elevation);
             TesseraParameters.Collect(_element, _parameters);
-            var typeName = _parameters.Find(item => item.Name == TesseraKeys.TypeName)?.Text;
             var material = _meshes.Select(mesh => mesh.MaterialName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
-            var type = TypeEntity(ifcClass, typeName);
+            var type = TypeEntity(_documents.Peek(), ifcClass, TesseraParameters.TypeOf(_element));
             var entity = _model.AddEntity(
                 ifcClass,
                 SafeName(_element),
@@ -129,17 +129,10 @@ internal sealed class TesseraExportContext : IExportContext
                 storey,
                 material);
             _model.AddContainedIn(storey, entity);
-            foreach (var parameter in _parameters)
-            {
-                if (parameter.Si is double si)
-                {
-                    _model.AddRealProperty(entity, "Revit", parameter.Name, si, parameter.IfcType);
-                }
-                else
-                {
-                    _model.AddTextProperty(entity, "Revit", parameter.Name, parameter.Text);
-                }
-            }
+            // IFC's Tag is the Revit ElementId: Tessera's mapping re-identifies elements by it
+            // when a GlobalId changes between exports.
+            _model.AddAttribute(entity, "Tag", _element.Id.Value.ToString(CultureInfo.InvariantCulture));
+            AddProperties(entity, _parameters);
 
             foreach (var mesh in _meshes)
             {
@@ -312,14 +305,19 @@ internal sealed class TesseraExportContext : IExportContext
         return entity;
     }
 
-    private uint TypeEntity(string ifcClass, string? typeName)
+    /// <summary>
+    /// The type object of a Revit type, added on first use with its own parameters and Tag.
+    /// Keyed by the Revit type, not its name: two families can both have a type called "Standard".
+    /// </summary>
+    private uint TypeEntity(Document document, string ifcClass, ElementType? revitType)
     {
-        if (string.IsNullOrWhiteSpace(typeName))
+        if (revitType == null || string.IsNullOrWhiteSpace(revitType.Name))
         {
             return TsraModel.NoEntity;
         }
 
-        var key = ifcClass + "\0" + typeName;
+        var globalId = ElementGlobalId(document, revitType, _linkIds.Count > 0 ? _linkIds.Peek() : null, BuiltInParameter.IFC_TYPE_GUID);
+        var key = Convert.ToHexString(globalId);
         if (_types.TryGetValue(key, out var existing))
         {
             return existing;
@@ -327,14 +325,33 @@ internal sealed class TesseraExportContext : IExportContext
 
         var entity = _model.AddEntity(
             TsraModel.TypeClass(ifcClass),
-            typeName,
-            TsraModel.StableId("type:" + ifcClass + ":" + typeName),
+            revitType.Name,
+            globalId,
             NextStep(),
             TsraModel.NoEntity,
             TsraModel.NoEntity,
             null);
         _types[key] = entity;
+        _model.AddAttribute(entity, "Tag", revitType.Id.Value.ToString(CultureInfo.InvariantCulture));
+        var parameters = new List<TesseraParameterValue>();
+        TesseraParameters.CollectType(revitType, parameters);
+        AddProperties(entity, parameters);
         return entity;
+    }
+
+    private void AddProperties(uint entity, IEnumerable<TesseraParameterValue> parameters)
+    {
+        foreach (var parameter in parameters)
+        {
+            if (parameter.Si is double si)
+            {
+                _model.AddRealProperty(entity, parameter.Set, parameter.Name, si, parameter.IfcType);
+            }
+            else
+            {
+                _model.AddTextProperty(entity, parameter.Set, parameter.Name, parameter.Text);
+            }
+        }
     }
 
     private uint NextStep() => _step++;
@@ -361,12 +378,12 @@ internal sealed class TesseraExportContext : IExportContext
     /// created in that session. UniqueId's suffix (the element id) is what tells them apart,
     /// and GetExportId folds it in.
     /// </remarks>
-    private static byte[] ElementGlobalId(Document document, Element element, byte[]? link)
+    private static byte[] ElementGlobalId(Document document, Element element, byte[]? link, BuiltInParameter ifcGuid = BuiltInParameter.IFC_GUID)
     {
         byte[]? id = null;
         try
         {
-            id = TsraModel.GlobalIdFromIfc(element.get_Parameter(BuiltInParameter.IFC_GUID)?.AsString());
+            id = TsraModel.GlobalIdFromIfc(element.get_Parameter(ifcGuid)?.AsString());
         }
         catch
         {

@@ -140,6 +140,23 @@ public class TsraFormatTests
     }
 
     [Fact]
+    public void AttributesAreTheirOwnSetKind()
+    {
+        var model = new TsraModel();
+        var door = model.AddEntity("IfcDoor", "Door", TsraModel.StableId("d"), 1, TsraModel.NoEntity, TsraModel.NoEntity, null);
+        model.AddAttribute(door, "Tag", "6001");
+        model.AddTextProperty(door, "PSet_Revit_Identity Data", "Mark", "D-1");
+        var file = Open(model.ToBytes(new TsraWriteOptions { ZstdLevel = 1 }));
+        var strings = ReadStrings(file.Section("STRS"));
+        var shapes = ReadShapes(file.Section("PROP"), strings);
+
+        // FORMAT.md, PROP set kinds: 0 property set, 2 the entity's own IFC attributes.
+        Assert.Contains(("Attributes", (byte)2, "Tag"), shapes);
+        Assert.Contains(("PSet_Revit_Identity Data", (byte)0, "Mark"), shapes);
+        Assert.Throws<ArgumentException>(() => model.AddTextProperty(door, TsraModel.AttributeSetName, "Name", "x"));
+    }
+
+    [Fact]
     public void NegativeCoordinatesStayOnTheTenthOfAMillimetreGrid()
     {
         var model = new TsraModel();
@@ -721,6 +738,42 @@ public class TsraFormatTests
         }
 
         return values;
+    }
+
+    /// <summary>PROP set shapes as (set name, kind, first pair name).</summary>
+    private static List<(string Set, byte Kind, string First)> ReadShapes(byte[] raw, List<string> strings)
+    {
+        var reader = new Reader(raw);
+        var valueCount = (int)reader.U32();
+        reader.Bytes(valueCount);
+        reader.Align(4);
+        for (var i = 0; i < valueCount; i++)
+        {
+            reader.U64();
+        }
+
+        var lists = (int)reader.U32();
+        var items = (int)reader.U32();
+        reader.U32s(lists);
+        reader.U32s(items);
+        reader.U32s(items);
+
+        var shapeCount = (int)reader.U32();
+        var pairCount = (int)reader.U32();
+        var names = reader.U32s(shapeCount);
+        var kinds = reader.Bytes(shapeCount);
+        reader.Align(4);
+        var counts = reader.U32s(shapeCount);
+        var pairNames = reader.U32s(pairCount);
+        var shapes = new List<(string, byte, string)>();
+        var at = 0;
+        for (var i = 0; i < shapeCount; i++)
+        {
+            shapes.Add((strings[(int)names[i]], kinds[i], counts[i] > 0 ? strings[(int)pairNames[at]] : ""));
+            at += (int)counts[i];
+        }
+
+        return shapes;
     }
 
     private static Dictionary<uint, uint[]> ReadRelations(byte[] raw)
