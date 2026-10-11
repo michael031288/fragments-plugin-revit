@@ -13,7 +13,7 @@ public class TsraFormatTests
     public void EmptyModelIsAVersion06Container()
     {
         var model = new TsraModel { SourceName = "empty.rvt" };
-        model.AddEntity("IfcProject", "Empty", TsraModel.StableId("project"), 1, null, TsraModel.NoEntity, null);
+        model.AddEntity("IfcProject", "Empty", TsraModel.StableId("project"), 1, TsraModel.NoEntity, TsraModel.NoEntity, null);
         var file = Open(model.ToBytes(new TsraWriteOptions { ZstdLevel = 3 }));
 
         Assert.Equal(new[] { "META", "STRS", "ENTS", "STYL", "PRXY", "CHNK", "PROT", "PART", "RDAT", "RELS", "PROP", "CIDX", "CANO" }, file.Tags);
@@ -39,8 +39,11 @@ public class TsraFormatTests
             Schema = "Revit",
             SourceName = "Tower.rvt"
         };
-        var project = model.AddEntity("IfcProject", "Tower", TsraModel.StableId("project:Tower"), 1, null, TsraModel.NoEntity, null);
-        var wall = model.AddEntity("IfcWall", "Größe", WallId(), 7, "Basic Wall", project, "Concrete");
+        var project = model.AddEntity("IfcProject", "Tower", TsraModel.StableId("project:Tower"), 1, TsraModel.NoEntity, TsraModel.NoEntity, null);
+        Assert.Equal("IfcWallType", TsraModel.TypeClass("IfcWall"));
+        Assert.Equal("IfcWallType", TsraModel.TypeClass("IfcWallType"));
+        var type = model.AddEntity(TsraModel.TypeClass("IfcWall"), "Basic Wall", TsraModel.StableId("type:IfcWall:Basic Wall"), 2, TsraModel.NoEntity, TsraModel.NoEntity, null);
+        var wall = model.AddEntity("IfcWall", "Größe", WallId(), 7, type, project, "Concrete");
         model.AddAggregate(project, wall);
         model.AddContainedIn(project, wall);
         model.AddTextProperty(wall, "Revit", "Mark", "W1");
@@ -52,7 +55,7 @@ public class TsraFormatTests
 
         using var meta = JsonDocument.Parse(file.Section("META"));
         var counts = meta.RootElement.GetProperty("counts");
-        Assert.Equal(2, counts.GetProperty("entities").GetInt32());
+        Assert.Equal(3, counts.GetProperty("entities").GetInt32());
         Assert.Equal(1, counts.GetProperty("elements_with_geometry").GetInt32());
         Assert.Equal(1, counts.GetProperty("parts").GetInt32());
         Assert.Equal(12, counts.GetProperty("triangles").GetInt32());
@@ -69,13 +72,16 @@ public class TsraFormatTests
         Assert.Contains("IFCLENGTHMEASURE", strings);
 
         var entities = ReadEntities(file.Section("ENTS"), strings);
-        Assert.Equal("IfcWall", entities[1].Class);
-        Assert.Equal("Größe", entities[1].Name);
-        Assert.Equal("Basic Wall", entities[1].Type);
-        Assert.Equal(project, entities[1].Level);
-        Assert.Equal("Concrete", entities[1].Material);
-        Assert.Equal(7u, entities[1].StepId);
-        Assert.Equal(WallId(), entities[1].GlobalId);
+        Assert.Equal("IfcWallType", entities[(int)type].Class);
+        Assert.Equal("Basic Wall", entities[(int)type].Name);
+        Assert.Equal(TsraModel.NoEntity, entities[(int)type].Level);
+        Assert.Equal("IfcWall", entities[(int)wall].Class);
+        Assert.Equal("Größe", entities[(int)wall].Name);
+        Assert.Equal("Basic Wall", entities[(int)wall].Type);
+        Assert.Equal(project, entities[(int)wall].Level);
+        Assert.Equal("Concrete", entities[(int)wall].Material);
+        Assert.Equal(7u, entities[(int)wall].StepId);
+        Assert.Equal(WallId(), entities[(int)wall].GlobalId);
 
         var styles = ReadStyles(file.Section("STYL"));
         Assert.Equal(new byte[] { 230, 126, 34, 255 }, styles[0]);
@@ -116,7 +122,7 @@ public class TsraFormatTests
     public void NegativeCoordinatesStayOnTheTenthOfAMillimetreGrid()
     {
         var model = new TsraModel();
-        var entity = model.AddEntity("IfcSlab", "Slab", new byte[16], 2, null, TsraModel.NoEntity, null);
+        var entity = model.AddEntity("IfcSlab", "Slab", new byte[16], 2, TsraModel.NoEntity, TsraModel.NoEntity, null);
         model.AddMesh(entity, 0, new double[]
         {
             -1.5, 0.25, 3,
@@ -421,10 +427,16 @@ public class TsraFormatTests
         reader.U32s(count);
         for (var i = 0; i < count; i++)
         {
+            if ((types[i] != uint.MaxValue && types[i] >= (uint)count) || (levels[i] != uint.MaxValue && levels[i] >= (uint)count))
+            {
+                throw new InvalidDataException("entity reference");
+            }
+
+            var typeName = types[i] == uint.MaxValue ? "" : strings[(int)names[types[i]]];
             entities.Add(new Entity(
                 strings[(int)classes[classIndex[i]]],
                 strings[(int)names[i]],
-                types[i] == uint.MaxValue ? "" : strings[(int)types[i]],
+                typeName,
                 levels[i],
                 materials[i] == 0 ? "" : strings[(int)materials[i]],
                 steps[i],

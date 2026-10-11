@@ -18,7 +18,7 @@ Output `.frag` files load directly in That Open viewers via `fragments.load(byte
 `Tessera.Revit` writes Tessera format 0.6 straight from the Revit view. The file is the compiled-building container (`TSRA`, minor version 6): paged zstd tables, world-chunk meshlets, and lossless canonical meshes. Geometry stays Z-up, in metres, on a 0.1 mm grid.
 
 - One `.tsra` for the active 3D view, including links
-- Entities for the project, site, building, storeys, and elements, with IFC class names (`IfcWall`, `IfcWindow`, …)
+- Entities for the project, site, building, storeys, elements, and one type object per Revit type (`IfcWall` → `IfcWallType`). The type column is that type object's entity index, which is what the Tessera reader accepts
 - Aggregates and contained-in relations, plus Revit parameters. Lengths, areas, and volumes are stored in SI; other parameters stay text
 - Material colors, or the class color when Revit has no material (walls orange, windows red, roofs magenta, stairs green)
 - Mesh detail: coarse (LoD 2), medium (LoD 8), fine (LoD 15), or whatever the active view is using

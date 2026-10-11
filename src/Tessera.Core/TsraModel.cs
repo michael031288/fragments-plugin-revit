@@ -77,7 +77,27 @@ public sealed class TsraModel
         return id;
     }
 
-    public uint AddEntity(string ifcClass, string? name, ReadOnlySpan<byte> globalId, uint stepId, string? typeName, uint level, string? material)
+    /// <summary>
+    /// IFC type class for an occurrence class (<c>IfcWall</c> → <c>IfcWallType</c>).
+    /// </summary>
+    public static string TypeClass(string occurrenceClass)
+    {
+        if (string.IsNullOrWhiteSpace(occurrenceClass))
+        {
+            return "IfcTypeObject";
+        }
+
+        return occurrenceClass.EndsWith("Type", StringComparison.Ordinal)
+            ? occurrenceClass
+            : occurrenceClass + "Type";
+    }
+
+    /// <summary>
+    /// Adds an entity. <paramref name="type"/> and <paramref name="level"/> are entity
+    /// indices already added, or <see cref="NoEntity"/>. Format 0.6 rejects a string id
+    /// in either column.
+    /// </summary>
+    public uint AddEntity(string ifcClass, string? name, ReadOnlySpan<byte> globalId, uint stepId, uint type, uint level, string? material)
     {
         if (string.IsNullOrWhiteSpace(ifcClass))
         {
@@ -103,6 +123,11 @@ public sealed class TsraModel
             globalId.Slice(0, Math.Min(16, globalId.Length)).CopyTo(gid);
         }
 
+        if (type != NoEntity && type >= (uint)_entities.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(type), "Type must be an entity already added, or NoEntity.");
+        }
+
         if (level != NoEntity && level >= (uint)_entities.Count)
         {
             throw new ArgumentOutOfRangeException(nameof(level), "Level must be an entity already added, or NoEntity.");
@@ -114,7 +139,7 @@ public sealed class TsraModel
             GlobalId = gid,
             StepId = stepId,
             Name = Intern(name),
-            Type = string.IsNullOrEmpty(typeName) ? NoEntity : Intern(typeName),
+            Type = type,
             Level = level,
             Material = string.IsNullOrEmpty(material) ? 0 : Intern(material)
         });
@@ -536,6 +561,14 @@ public sealed class TsraModel
 
     private byte[] EncodeEntities()
     {
+        foreach (var entity in _entities)
+        {
+            if (!EntityRef(entity.Type) || !EntityRef(entity.Level))
+            {
+                throw new InvalidOperationException("A type or level does not refer to an entity in this file.");
+            }
+        }
+
         var output = new OutBuf();
         output.U32((uint)_entities.Count);
         output.U32((uint)_classNames.Count);
@@ -1106,6 +1139,8 @@ public sealed class TsraModel
         var limit = Math.Min(1.0, 2.0 * size / Math.Max(1, budget)) * uint.MaxValue;
         return head < limit;
     }
+
+    private bool EntityRef(uint id) => id == NoEntity || id < (uint)_entities.Count;
 
     private static int CheckedRelative(long position, long origin)
     {
