@@ -122,10 +122,10 @@ internal sealed class TesseraExportContext : IExportContext
             var material = _meshes.Select(mesh => mesh.MaterialName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
             var revitType = TesseraParameters.TypeOf(_element);
             var type = TypeEntity(ifcClass, revitType);
-            var elementId = _element.Id.Value.ToString(CultureInfo.InvariantCulture);
+            var revitId = _element.Id.Value.ToString(CultureInfo.InvariantCulture);
             var entity = _model.AddEntity(
                 ifcClass,
-                ElementName(_element, revitType, elementId),
+                ElementName(_element, revitType, revitId),
                 ElementGlobalId(_documents.Peek(), _element),
                 NextStep(),
                 type,
@@ -135,7 +135,7 @@ internal sealed class TesseraExportContext : IExportContext
 
             // As Revit's IFC exporter writes them: Tag is the ElementId (how Tessera's mapping
             // follows an element across exports), ObjectType is "Family:Type".
-            _model.AddTextAttribute(entity, "Tag", elementId);
+            _model.AddTextAttribute(entity, "Tag", revitId);
             if (revitType != null)
             {
                 _model.AddTextAttribute(entity, "ObjectType", FamilyAndType(revitType));
