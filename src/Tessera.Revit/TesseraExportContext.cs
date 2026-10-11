@@ -9,6 +9,7 @@ internal sealed class TesseraExportContext : IExportContext
     private readonly string _projectName;
     private readonly Stack<Document> _documents = new();
     private readonly Stack<Transform> _transforms = new();
+    private readonly Stack<byte[]> _linkIds = new();
     private readonly int _levelOfDetail;
     private readonly Dictionary<string, uint> _storeys = new(StringComparer.Ordinal);
     private readonly Dictionary<string, uint> _types = new(StringComparer.Ordinal);
@@ -83,7 +84,7 @@ internal sealed class TesseraExportContext : IExportContext
         _parameters.Clear();
         _hasMaterial = false;
 
-        if (element == null || _pendingLink != null || element is Autodesk.Revit.DB.View)
+        if (element == null || _pendingLink != null || element is Autodesk.Revit.DB.View || element is Level)
         {
             return RenderNodeAction.Proceed;
         }
@@ -122,7 +123,7 @@ internal sealed class TesseraExportContext : IExportContext
             var entity = _model.AddEntity(
                 ifcClass,
                 SafeName(_element),
-                GlobalId(_element.UniqueId),
+                ElementGlobalId(_documents.Peek(), _element),
                 NextStep(),
                 type,
                 storey,
@@ -182,6 +183,11 @@ internal sealed class TesseraExportContext : IExportContext
             return RenderNodeAction.Skip;
         }
 
+        // Elements of a link are identified within that link instance, so two placements
+        // of the same link (or a link and its host) never share a GlobalId.
+        var outer = _linkIds.Count > 0 ? _linkIds.Peek() : null;
+        var instance = ElementGlobalId(_documents.Peek(), _pendingLink!, outer);
+        _linkIds.Push(instance);
         _transforms.Push(_transforms.Peek().Multiply(node.GetTransform()));
         _documents.Push(linkDocument);
         _linkDepth++;
@@ -196,6 +202,11 @@ internal sealed class TesseraExportContext : IExportContext
         }
 
         _linkDepth--;
+        if (_linkIds.Count > 0)
+        {
+            _linkIds.Pop();
+        }
+
         if (_documents.Count > 1)
         {
             _documents.Pop();
@@ -335,14 +346,48 @@ internal sealed class TesseraExportContext : IExportContext
         mesh.Coordinates.Add(TesseraRevitExporter.ToMeters(feet.Z));
     }
 
-    private static byte[] GlobalId(string? uniqueId)
+    private byte[] ElementGlobalId(Document document, Element element)
     {
-        if (!string.IsNullOrEmpty(uniqueId) && uniqueId.Length >= 36 && Guid.TryParse(uniqueId.AsSpan(0, 36), out var guid))
+        return ElementGlobalId(document, element, _linkIds.Count > 0 ? _linkIds.Peek() : null);
+    }
+
+    /// <summary>
+    /// The element's IFC GlobalId, as Revit's IFC exporter assigns it: the IfcGUID
+    /// parameter when it holds one, otherwise the export GUID (ExportUtils.GetExportId).
+    /// Inside a link it is combined with the link instance's id.
+    /// </summary>
+    /// <remarks>
+    /// Not UniqueId's leading GUID: that is the editing session's, shared by every element
+    /// created in that session. UniqueId's suffix (the element id) is what tells them apart,
+    /// and GetExportId folds it in.
+    /// </remarks>
+    private static byte[] ElementGlobalId(Document document, Element element, byte[]? link)
+    {
+        byte[]? id = null;
+        try
         {
-            return guid.ToByteArray();
+            id = TsraModel.GlobalIdFromIfc(element.get_Parameter(BuiltInParameter.IFC_GUID)?.AsString());
+        }
+        catch
+        {
+            // No IfcGUID parameter.
         }
 
-        return TsraModel.StableId(uniqueId ?? "element");
+        if (id == null)
+        {
+            try
+            {
+                id = TsraModel.GlobalIdFromGuid(ExportUtils.GetExportId(document, element.Id));
+            }
+            catch
+            {
+                id = TsraModel.StableId("revit:" + element.UniqueId);
+            }
+        }
+
+        return link == null
+            ? id
+            : TsraModel.StableId("link:" + Convert.ToHexString(link) + ":" + Convert.ToHexString(id));
     }
 
     private static string SafeName(Element element)
