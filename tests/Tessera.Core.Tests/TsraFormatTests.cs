@@ -153,7 +153,7 @@ public class TsraFormatTests
         // FORMAT.md, PROP set kinds: 0 property set, 2 the entity's own IFC attributes.
         Assert.Contains(("Attributes", (byte)2, "Tag"), shapes);
         Assert.Contains(("PSet_Revit_Identity Data", (byte)0, "Mark"), shapes);
-        Assert.Throws<ArgumentException>(() => { model.AddTextProperty(door, TsraModel.AttributeSetName, "Name", "x"); return null; });
+        Assert.Throws<ArgumentException>(() => model.AddTextProperty(door, TsraModel.AttributeSetName, "Name", "x"));
     }
 
     [Fact]
