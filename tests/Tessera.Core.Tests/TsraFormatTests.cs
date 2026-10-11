@@ -119,6 +119,27 @@ public class TsraFormatTests
     }
 
     [Fact]
+    public void GlobalIdsUseTheGuidTextOrderThatIfcCompresses()
+    {
+        // Reference values: the GUID's hex digits read as one 128-bit number, in IFC's alphabet.
+        var guid = Guid.Parse("3a1b9e2c-5f04-4d7e-8b21-0c9fd4e6a5b7");
+        var bytes = TsraModel.GlobalIdFromGuid(guid);
+        Assert.Equal(new byte[] { 0x3a, 0x1b, 0x9e, 0x2c, 0x5f, 0x04, 0x4d, 0x7e, 0x8b, 0x21, 0x0c, 0x9f, 0xd4, 0xe6, 0xa5, 0xb7 }, bytes);
+        Assert.Equal("0w6vuiNmHDVeiX39$KvgMt", TsraModel.IfcGlobalId(bytes));
+        Assert.Equal(bytes, TsraModel.GlobalIdFromIfc("0w6vuiNmHDVeiX39$KvgMt"));
+
+        var one = new byte[16];
+        one[15] = 1;
+        Assert.Equal("0000000000000000000001", TsraModel.IfcGlobalId(one));
+        Assert.Equal("3$$$$$$$$$$$$$$$$$$$$$", TsraModel.IfcGlobalId(Enumerable.Repeat((byte)0xFF, 16).ToArray()));
+
+        Assert.Null(TsraModel.GlobalIdFromIfc(null));
+        Assert.Null(TsraModel.GlobalIdFromIfc("short"));
+        Assert.Null(TsraModel.GlobalIdFromIfc("4$$$$$$$$$$$$$$$$$$$$$"));
+        Assert.Null(TsraModel.GlobalIdFromIfc("000000000000000000000!"));
+    }
+
+    [Fact]
     public void NegativeCoordinatesStayOnTheTenthOfAMillimetreGrid()
     {
         var model = new TsraModel();

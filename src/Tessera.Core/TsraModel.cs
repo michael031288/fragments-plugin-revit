@@ -58,6 +58,80 @@ public sealed class TsraModel
         return TsraHash.Hash16(Encoding.UTF8.GetBytes(text ?? ""));
     }
 
+    // IFC's base-64 alphabet (not RFC 4648).
+    private const string IfcGuidAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$";
+
+    /// <summary>
+    /// A GUID as a Tessera GlobalId: 16 bytes in the GUID's text order (big-endian),
+    /// which is the number IFC compresses into its 22-character GlobalId.
+    /// <see cref="Guid.ToByteArray"/> swaps the first three groups, so it is not used.
+    /// </summary>
+    public static byte[] GlobalIdFromGuid(Guid guid)
+    {
+        return Convert.FromHexString(guid.ToString("N"));
+    }
+
+    /// <summary>A 22-character IFC GlobalId as 16 bytes; null if it is not one.</summary>
+    public static byte[]? GlobalIdFromIfc(string? text)
+    {
+        if (text is not { Length: 22 })
+        {
+            return null;
+        }
+
+        var first = IfcGuidAlphabet.IndexOf(text[0]);
+        if (first is < 0 or > 3)
+        {
+            return null;
+        }
+
+        var value = (UInt128)(uint)first;
+        for (var i = 1; i < 22; i++)
+        {
+            var digit = IfcGuidAlphabet.IndexOf(text[i]);
+            if (digit < 0)
+            {
+                return null;
+            }
+
+            value = (value << 6) | (uint)digit;
+        }
+
+        var bytes = new byte[16];
+        for (var i = 15; i >= 0; i--)
+        {
+            bytes[i] = (byte)(value & 0xFF);
+            value >>= 8;
+        }
+
+        return bytes;
+    }
+
+    /// <summary>16 GlobalId bytes in IFC's 22-character form (as Tessera shows them).</summary>
+    public static string IfcGlobalId(ReadOnlySpan<byte> globalId)
+    {
+        if (globalId.Length != 16)
+        {
+            throw new ArgumentException("A GlobalId is 16 bytes.", nameof(globalId));
+        }
+
+        UInt128 value = 0;
+        foreach (var b in globalId)
+        {
+            value = (value << 8) | b;
+        }
+
+        var chars = new char[22];
+        for (var i = 21; i >= 1; i--)
+        {
+            chars[i] = IfcGuidAlphabet[(int)(value & 63)];
+            value >>= 6;
+        }
+
+        chars[0] = IfcGuidAlphabet[(int)(value & 3)];
+        return new string(chars);
+    }
+
     public uint Intern(string? text)
     {
         text ??= "";
