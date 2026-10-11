@@ -62,6 +62,12 @@ Unblock the DLLs if Windows marks them as downloaded. Revit 2026's manifest incl
 
 Open a 3D view, then use **Add-Ins → Tessera → Export .tsra**. The button does not add its own ribbon tab.
 
+### Convert a folder of models
+
+`tools\batch` turns every `.rvt` in `input\` into a `.tsra` in `output\` in one go: run `Convert.bat`. Revit runs in the background with the same exporter and closes itself when finished. `pack-tessera-addin.ps1` also writes the kit, with the add-in bundled, as `artifacts\tessera\Tessera.Batch-<year>.zip`. See [tools/batch/README.md](tools/batch/README.md).
+
+Batch mode lives in the add-in (`BatchExport.cs`). It only activates when Revit starts with `TESSERA_BATCH_JOB` pointing at a job file, so normal sessions are unaffected.
+
 ---
 
 ## Build

@@ -80,6 +80,13 @@ jobs:
           path: artifacts/tessera/Tessera.Revit-${{ matrix.revit_year }}.zip
           if-no-files-found: error
 
+      - name: Upload folder-conversion kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tessera.Batch-${{ matrix.revit_year }}
+          path: artifacts/tessera/Tessera.Batch-${{ matrix.revit_year }}.zip
+          if-no-files-found: error
+
   release:
     name: Release
     needs: [test, build-revit, build-tessera]
