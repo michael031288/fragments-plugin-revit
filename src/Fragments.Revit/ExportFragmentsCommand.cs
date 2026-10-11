@@ -5,6 +5,8 @@ using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using FormSaveFileDialog = System.Windows.Forms.SaveFileDialog;
+// .NET 5+ also has System.Windows.Forms.TaskDialog; this file means Revit's.
+using TaskDialog = Autodesk.Revit.UI.TaskDialog;
 
 namespace Fragments.Revit;
 
