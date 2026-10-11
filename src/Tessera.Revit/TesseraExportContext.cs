@@ -11,6 +11,7 @@ internal sealed class TesseraExportContext : IExportContext
     private readonly Stack<Transform> _transforms = new();
     private readonly int _levelOfDetail;
     private readonly Dictionary<string, uint> _storeys = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, uint> _types = new(StringComparer.Ordinal);
     private readonly List<MeshDraft> _meshes = new();
     private readonly List<TesseraParameterValue> _parameters = new();
 
@@ -46,9 +47,9 @@ internal sealed class TesseraExportContext : IExportContext
 
     public bool Start()
     {
-        _project = _model.AddEntity("IfcProject", _projectName, TsraModel.StableId("project:" + _projectName), NextStep(), null, TsraModel.NoEntity, null);
-        _site = _model.AddEntity("IfcSite", "Site", TsraModel.StableId("site:" + _projectName), NextStep(), null, TsraModel.NoEntity, null);
-        _building = _model.AddEntity("IfcBuilding", "Building", TsraModel.StableId("building:" + _projectName), NextStep(), null, TsraModel.NoEntity, null);
+        _project = _model.AddEntity("IfcProject", _projectName, TsraModel.StableId("project:" + _projectName), NextStep(), TsraModel.NoEntity, TsraModel.NoEntity, null);
+        _site = _model.AddEntity("IfcSite", "Site", TsraModel.StableId("site:" + _projectName), NextStep(), TsraModel.NoEntity, TsraModel.NoEntity, null);
+        _building = _model.AddEntity("IfcBuilding", "Building", TsraModel.StableId("building:" + _projectName), NextStep(), TsraModel.NoEntity, TsraModel.NoEntity, null);
         _model.AddAggregate(_project, _site);
         _model.AddAggregate(_site, _building);
         return true;
@@ -117,12 +118,13 @@ internal sealed class TesseraExportContext : IExportContext
             TesseraParameters.Collect(_element, _parameters);
             var typeName = _parameters.Find(item => item.Name == TesseraKeys.TypeName)?.Text;
             var material = _meshes.Select(mesh => mesh.MaterialName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+            var type = TypeEntity(ifcClass, typeName);
             var entity = _model.AddEntity(
                 ifcClass,
                 SafeName(_element),
                 GlobalId(_element.UniqueId),
                 NextStep(),
-                typeName,
+                type,
                 storey,
                 material);
             _model.AddContainedIn(storey, entity);
@@ -288,7 +290,7 @@ internal sealed class TesseraExportContext : IExportContext
             return existing;
         }
 
-        var entity = _model.AddEntity("IfcBuildingStorey", name, TsraModel.StableId("storey:" + _projectName + ":" + name), NextStep(), null, TsraModel.NoEntity, null);
+        var entity = _model.AddEntity("IfcBuildingStorey", name, TsraModel.StableId("storey:" + _projectName + ":" + name), NextStep(), TsraModel.NoEntity, TsraModel.NoEntity, null);
         _storeys[name] = entity;
         _model.AddAggregate(_building, entity);
         if (elevation is double metres)
@@ -296,6 +298,31 @@ internal sealed class TesseraExportContext : IExportContext
             _model.AddRealProperty(entity, "Revit", TesseraKeys.StoreyElevation, metres, "IFCLENGTHMEASURE");
         }
 
+        return entity;
+    }
+
+    private uint TypeEntity(string ifcClass, string? typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName))
+        {
+            return TsraModel.NoEntity;
+        }
+
+        var key = ifcClass + "\0" + typeName;
+        if (_types.TryGetValue(key, out var existing))
+        {
+            return existing;
+        }
+
+        var entity = _model.AddEntity(
+            TsraModel.TypeClass(ifcClass),
+            typeName,
+            TsraModel.StableId("type:" + ifcClass + ":" + typeName),
+            NextStep(),
+            TsraModel.NoEntity,
+            TsraModel.NoEntity,
+            null);
+        _types[key] = entity;
         return entity;
     }
 
