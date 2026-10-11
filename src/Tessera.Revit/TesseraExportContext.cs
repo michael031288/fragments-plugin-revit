@@ -1,3 +1,4 @@
+using System.Globalization;
 using Autodesk.Revit.DB;
 using Tessera.Core;
 
@@ -13,6 +14,7 @@ internal sealed class TesseraExportContext : IExportContext
     private readonly int _levelOfDetail;
     private readonly Dictionary<string, uint> _storeys = new(StringComparer.Ordinal);
     private readonly Dictionary<string, uint> _types = new(StringComparer.Ordinal);
+    private readonly List<TesseraParameterValue> _typeParameters = new();
     private readonly List<MeshDraft> _meshes = new();
     private readonly List<TesseraParameterValue> _parameters = new();
 
@@ -115,31 +117,31 @@ internal sealed class TesseraExportContext : IExportContext
                 elevation = TesseraRevitExporter.ToMeters(point.Z);
             }
 
-            var storey = Storey(storeyName, elevation);
+            var storey = Storey(storeyName, elevation, level);
             TesseraParameters.Collect(_element, _parameters);
-            var typeName = _parameters.Find(item => item.Name == TesseraKeys.TypeName)?.Text;
             var material = _meshes.Select(mesh => mesh.MaterialName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
-            var type = TypeEntity(ifcClass, typeName);
+            var revitType = TesseraParameters.TypeOf(_element);
+            var type = TypeEntity(ifcClass, revitType);
+            var revitId = _element.Id.Value.ToString(CultureInfo.InvariantCulture);
             var entity = _model.AddEntity(
                 ifcClass,
-                SafeName(_element),
+                ElementName(_element, revitType, revitId),
                 ElementGlobalId(_documents.Peek(), _element),
                 NextStep(),
                 type,
                 storey,
                 material);
             _model.AddContainedIn(storey, entity);
-            foreach (var parameter in _parameters)
+
+            // As Revit's IFC exporter writes them: Tag is the ElementId (how Tessera's mapping
+            // follows an element across exports), ObjectType is "Family:Type".
+            _model.AddTextAttribute(entity, "Tag", revitId);
+            if (revitType != null)
             {
-                if (parameter.Si is double si)
-                {
-                    _model.AddRealProperty(entity, "Revit", parameter.Name, si, parameter.IfcType);
-                }
-                else
-                {
-                    _model.AddTextProperty(entity, "Revit", parameter.Name, parameter.Text);
-                }
+                _model.AddTextAttribute(entity, "ObjectType", FamilyAndType(revitType));
             }
+
+            AddParameters(entity, _parameters);
 
             foreach (var mesh in _meshes)
             {
@@ -294,32 +296,49 @@ internal sealed class TesseraExportContext : IExportContext
     {
     }
 
-    private uint Storey(string name, double? elevation)
+    private uint Storey(string name, double? elevation, Level? level)
     {
         if (_storeys.TryGetValue(name, out var existing))
         {
             return existing;
         }
 
-        var entity = _model.AddEntity("IfcBuildingStorey", name, TsraModel.StableId("storey:" + _projectName + ":" + name), NextStep(), TsraModel.NoEntity, TsraModel.NoEntity, null);
+        // A host level keeps its own GlobalId and ElementId, as in Revit's IFC export.
+        var hostLevel = level != null && _linkIds.Count == 0 ? level : null;
+        var globalId = hostLevel != null
+            ? ElementGlobalId(_documents.Peek(), hostLevel)
+            : TsraModel.StableId("storey:" + _projectName + ":" + name);
+        var entity = _model.AddEntity("IfcBuildingStorey", name, globalId, NextStep(), TsraModel.NoEntity, TsraModel.NoEntity, null);
         _storeys[name] = entity;
         _model.AddAggregate(_building, entity);
         if (elevation is double metres)
         {
-            _model.AddRealProperty(entity, "Revit", TesseraKeys.StoreyElevation, metres, "IFCLENGTHMEASURE");
+            // IfcBuildingStorey.Elevation: what Tessera's IFC export and level ordering read.
+            _model.AddRealAttribute(entity, "Elevation", metres, "IFCLENGTHMEASURE");
+        }
+
+        if (hostLevel != null)
+        {
+            _model.AddTextAttribute(entity, "Tag", hostLevel.Id.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         return entity;
     }
 
-    private uint TypeEntity(string ifcClass, string? typeName)
+    /// <summary>
+    /// One type object per Revit type (not per name: two families may both have a
+    /// "Standard" type), named "Family:Type", with the type's parameters on it.
+    /// </summary>
+    private uint TypeEntity(string ifcClass, ElementType? revitType)
     {
-        if (string.IsNullOrWhiteSpace(typeName))
+        if (revitType == null)
         {
             return TsraModel.NoEntity;
         }
 
-        var key = ifcClass + "\0" + typeName;
+        var document = _documents.Peek();
+        var globalId = ElementGlobalId(document, revitType);
+        var key = ifcClass + "\0" + Convert.ToHexString(globalId);
         if (_types.TryGetValue(key, out var existing))
         {
             return existing;
@@ -327,14 +346,57 @@ internal sealed class TesseraExportContext : IExportContext
 
         var entity = _model.AddEntity(
             TsraModel.TypeClass(ifcClass),
-            typeName,
-            TsraModel.StableId("type:" + ifcClass + ":" + typeName),
+            FamilyAndType(revitType),
+            globalId,
             NextStep(),
             TsraModel.NoEntity,
             TsraModel.NoEntity,
             null);
         _types[key] = entity;
+        _model.AddTextAttribute(entity, "Tag", revitType.Id.Value.ToString(CultureInfo.InvariantCulture));
+
+        _typeParameters.Clear();
+        TesseraParameters.CollectType(revitType, _typeParameters);
+        AddParameters(entity, _typeParameters);
         return entity;
+    }
+
+    private void AddParameters(uint entity, List<TesseraParameterValue> parameters)
+    {
+        foreach (var parameter in parameters)
+        {
+            if (parameter.Si is double si)
+            {
+                _model.AddRealProperty(entity, parameter.Set, parameter.Name, si, parameter.IfcType);
+            }
+            else
+            {
+                _model.AddTextProperty(entity, parameter.Set, parameter.Name, parameter.Text);
+            }
+        }
+    }
+
+    /// <summary>"Family:Type", as Revit's IFC exporter writes ObjectType and type names.</summary>
+    private static string FamilyAndType(ElementType type)
+    {
+        string family = "";
+        try
+        {
+            family = type.FamilyName;
+        }
+        catch
+        {
+            // Some types refuse to report a family.
+        }
+
+        var name = string.IsNullOrWhiteSpace(type.Name) ? "Type" : type.Name;
+        return string.IsNullOrWhiteSpace(family) ? name : family + ":" + name;
+    }
+
+    /// <summary>"Family:Type:ElementId", Revit's IFC export name; "Name:ElementId" without a type.</summary>
+    private static string ElementName(Element element, ElementType? type, string elementId)
+    {
+        return (type != null ? FamilyAndType(type) : SafeName(element)) + ":" + elementId;
     }
 
     private uint NextStep() => _step++;
