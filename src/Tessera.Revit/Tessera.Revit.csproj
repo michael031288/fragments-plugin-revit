@@ -10,6 +10,11 @@
     <OutputPath>bin\$(Configuration)\$(RevitVersion)\</OutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Revit is x64 Windows. A runtime identifier puts NuGet native libraries (blake3_dotnet.dll)
+         next to the add-in, where Revit's loader finds them, instead of under runtimes\<rid>\native. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <DefineConstants>$(DefineConstants);REVIT$(RevitVersion)</DefineConstants>
   </PropertyGroup>
 

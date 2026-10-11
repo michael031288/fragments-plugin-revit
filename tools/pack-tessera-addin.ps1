@@ -43,9 +43,16 @@ foreach ($year in $RevitYears) {
         Copy-Item $file.FullName $packagePluginDir -Force
     }
 
-    $native = Join-Path $packagePluginDir "meshoptimizer.dll"
-    if (-not (Test-Path $native)) {
-        throw "meshoptimizer.dll was not copied for Revit $year. Tessera cannot encode .tsra geometry without it."
+    # Native libraries from NuGet packages, in case the build left them under runtimes\win-x64\native.
+    $nestedNative = Join-Path $source "runtimes\win-x64\native"
+    if (Test-Path $nestedNative) {
+        Get-ChildItem $nestedNative -File -Filter *.dll | Copy-Item -Destination $packagePluginDir -Force
+    }
+
+    foreach ($required in "meshoptimizer.dll", "blake3_dotnet.dll") {
+        if (-not (Test-Path (Join-Path $packagePluginDir $required))) {
+            throw "$required was not copied for Revit $year. Tessera cannot write .tsra files without it."
+        }
     }
 
     $addinXml = @"

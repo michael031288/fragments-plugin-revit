@@ -25,7 +25,7 @@ Output `.frag` files load directly in That Open viewers via `fragments.load(byte
 - Project coordinates by default, so the model stays near the origin. Shared coordinates can be baked in. The survey point is stored on the project either way
 - Full-detail render chunks and canonical blobs. Level-of-detail proxy meshes are not written
 
-The meshlet and canonical codecs are meshoptimizer 0.25, the same sources Tessera's `meshopt` 0.6.2 crate links. `meshoptimizer.dll` has to sit next to `Tessera.Core.dll`.
+The meshlet and canonical codecs are meshoptimizer 0.25, the same sources Tessera's `meshopt` 0.6.2 crate links. `meshoptimizer.dll` and `blake3_dotnet.dll` (Blake3's native library) have to sit next to `Tessera.Core.dll`.
 
 ### Build
 
@@ -55,6 +55,7 @@ Copy the zip contents into the matching user Addins folder:
     ├── Tessera.Revit.dll
     ├── Tessera.Core.dll
     ├── meshoptimizer.dll
+    ├── blake3_dotnet.dll
     └── Blake3.dll, ZstdSharp.dll
 ```
 
