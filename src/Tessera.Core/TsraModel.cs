@@ -35,7 +35,7 @@ public sealed class TsraModel
     private readonly List<(byte R, byte G, byte B, byte A)> _styles = new();
     private readonly List<MeshRow> _meshes = new();
     private readonly List<PropertySet> _propertySets = new();
-    private readonly Dictionary<(uint Entity, string Set), int> _propertyIndex = new();
+    private readonly Dictionary<(uint Entity, byte Kind, string Set), int> _propertyIndex = new();
 
     public string Generator { get; set; } = "Tessera.Revit";
 
@@ -338,14 +338,44 @@ public sealed class TsraModel
         }
     }
 
+    /// <summary>Set kind of an IfcPropertySet (FORMAT.md, PROP).</summary>
+    public const byte PropertySetKind = 0;
+
+    /// <summary>Set kind of the entity's own IFC attributes, in a set named "Attributes".</summary>
+    public const byte AttributesKind = 2;
+
+    private const string AttributesSetName = "Attributes";
+
+    /// <summary>An IFC attribute of the entity (Tag, ObjectType, Description, ...), as text.</summary>
+    public void AddTextAttribute(uint entity, string name, string? value)
+    {
+        AddText(entity, AttributesKind, AttributesSetName, name, value);
+    }
+
+    /// <summary>A numeric IFC attribute of the entity (a storey's Elevation), SI units.</summary>
+    public void AddRealAttribute(uint entity, string name, double value, string? ifcType)
+    {
+        AddReal(entity, AttributesKind, AttributesSetName, name, value, ifcType);
+    }
+
     public void AddTextProperty(uint entity, string setName, string name, string? value)
+    {
+        AddText(entity, PropertySetKind, setName, name, value);
+    }
+
+    public void AddRealProperty(uint entity, string setName, string name, double value, string? ifcType)
+    {
+        AddReal(entity, PropertySetKind, setName, name, value, ifcType);
+    }
+
+    private void AddText(uint entity, byte kind, string setName, string name, string? value)
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
         {
             return;
         }
 
-        var set = Properties(entity, setName);
+        var set = Properties(entity, kind, setName);
         if (set.Exists(item => item.Name == name))
         {
             return;
@@ -354,14 +384,14 @@ public sealed class TsraModel
         set.Add(new PropertyValue { Name = name, Text = value });
     }
 
-    public void AddRealProperty(uint entity, string setName, string name, double value, string? ifcType)
+    private void AddReal(uint entity, byte kind, string setName, string name, double value, string? ifcType)
     {
         if (string.IsNullOrWhiteSpace(name) || !double.IsFinite(value))
         {
             return;
         }
 
-        var set = Properties(entity, setName);
+        var set = Properties(entity, kind, setName);
         if (set.Exists(item => item.Name == name))
         {
             return;
@@ -914,11 +944,11 @@ public sealed class TsraModel
             }
 
             var name = Intern(group.Name);
-            var key = SetKey(0, name, pairs, types);
+            var key = SetKey(group.Kind, name, pairs, types);
             if (!setIds.TryGetValue(key, out var setId))
             {
                 setId = (uint)sets.Count;
-                sets.Add(new StoredSet { Name = name, Pairs = pairs, Types = types });
+                sets.Add(new StoredSet { Kind = group.Kind, Name = name, Pairs = pairs, Types = types });
                 setIds[key] = setId;
             }
 
@@ -954,11 +984,11 @@ public sealed class TsraModel
                 types.Add(p < set.Types.Count ? set.Types[p] : 0);
             }
 
-            var key = SetKey(0, set.Name, names.Select(item => (item, 0u)).ToList(), types);
+            var key = SetKey(set.Kind, set.Name, names.Select(item => (item, 0u)).ToList(), types);
             if (!shapeIds.TryGetValue(key, out var shape))
             {
                 shape = (uint)shapes.Count;
-                shapes.Add((0, set.Name, names, types));
+                shapes.Add((set.Kind, set.Name, names, types));
                 shapeIds[key] = shape;
             }
 
@@ -1263,7 +1293,7 @@ public sealed class TsraModel
         return builder.ToString();
     }
 
-    private List<PropertyValue> Properties(uint entity, string setName)
+    private List<PropertyValue> Properties(uint entity, byte kind, string setName)
     {
         if (entity >= (uint)_entities.Count)
         {
@@ -1271,11 +1301,11 @@ public sealed class TsraModel
         }
 
         setName = string.IsNullOrWhiteSpace(setName) ? "Revit" : setName;
-        if (!_propertyIndex.TryGetValue((entity, setName), out var index))
+        if (!_propertyIndex.TryGetValue((entity, kind, setName), out var index))
         {
             index = _propertySets.Count;
-            _propertySets.Add(new PropertySet { Entity = entity, Name = setName, Values = new List<PropertyValue>() });
-            _propertyIndex[(entity, setName)] = index;
+            _propertySets.Add(new PropertySet { Entity = entity, Kind = kind, Name = setName, Values = new List<PropertyValue>() });
+            _propertyIndex[(entity, kind, setName)] = index;
         }
 
         return _propertySets[index].Values;
@@ -1337,6 +1367,7 @@ public sealed class TsraModel
     private sealed class PropertySet
     {
         public uint Entity;
+        public byte Kind;
         public string Name = "";
         public List<PropertyValue> Values = new();
     }
@@ -1351,6 +1382,7 @@ public sealed class TsraModel
 
     private sealed class StoredSet
     {
+        public byte Kind;
         public uint Name;
         public List<(uint Name, uint Value)> Pairs = new();
         public List<uint> Types = new();

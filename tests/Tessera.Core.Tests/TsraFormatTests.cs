@@ -140,6 +140,28 @@ public class TsraFormatTests
     }
 
     [Fact]
+    public void AttributesAreWrittenAsTheirOwnSetKind()
+    {
+        var model = new TsraModel();
+        var storey = model.AddEntity("IfcBuildingStorey", "L1", TsraModel.StableId("l1"), 1, TsraModel.NoEntity, TsraModel.NoEntity, null);
+        var wall = model.AddEntity("IfcWall", "Basic Wall:Generic:1001", TsraModel.StableId("w"), 2, TsraModel.NoEntity, storey, null);
+        model.AddRealAttribute(storey, "Elevation", 3.5, "IFCLENGTHMEASURE");
+        model.AddTextAttribute(wall, "Tag", "1001");
+        model.AddTextProperty(wall, "PSet_Revit_Identity Data", "Mark", "W1");
+        // A property set may share the attributes set's name; the kind keeps them apart.
+        model.AddTextProperty(wall, "Attributes", "Tag", "not an attribute");
+
+        var file = Open(model.ToBytes(new TsraWriteOptions { ZstdLevel = 1 }));
+        var strings = ReadStrings(file.Section("STRS"));
+        var shapes = ReadSetShapes(file.Section("PROP"), strings);
+
+        Assert.Contains(shapes, item => item.Kind == TsraModel.AttributesKind && item.Name == "Attributes" && item.Pairs.SequenceEqual(new[] { "Elevation" }));
+        Assert.Contains(shapes, item => item.Kind == TsraModel.AttributesKind && item.Name == "Attributes" && item.Pairs.SequenceEqual(new[] { "Tag" }));
+        Assert.Contains(shapes, item => item.Kind == TsraModel.PropertySetKind && item.Name == "Attributes");
+        Assert.Contains(shapes, item => item.Kind == TsraModel.PropertySetKind && item.Name == "PSet_Revit_Identity Data");
+    }
+
+    [Fact]
     public void NegativeCoordinatesStayOnTheTenthOfAMillimetreGrid()
     {
         var model = new TsraModel();
@@ -721,6 +743,42 @@ public class TsraFormatTests
         }
 
         return values;
+    }
+
+    private static List<(string Name, byte Kind, string[] Pairs)> ReadSetShapes(byte[] raw, List<string> strings)
+    {
+        var reader = new Reader(raw);
+        var count = (int)reader.U32();
+        reader.Bytes(count);
+        reader.Align(4);
+        for (var i = 0; i < count; i++)
+        {
+            reader.U64();
+        }
+
+        var lists = (int)reader.U32();
+        var items = (int)reader.U32();
+        reader.U32s(lists);
+        reader.U32s(items);
+        reader.U32s(items);
+
+        var shapeCount = (int)reader.U32();
+        reader.U32();
+        var names = reader.U32s(shapeCount);
+        var kinds = reader.Bytes(shapeCount);
+        reader.Align(4);
+        var counts = reader.U32s(shapeCount);
+        var shapes = new List<(string, byte, string[])>(shapeCount);
+        var pairNames = reader.U32s((int)counts.Sum(c => (long)c));
+        var at = 0;
+        for (var i = 0; i < shapeCount; i++)
+        {
+            var pairs = pairNames.Skip(at).Take((int)counts[i]).Select(id => strings[(int)id]).ToArray();
+            at += (int)counts[i];
+            shapes.Add((strings[(int)names[i]], kinds[i], pairs));
+        }
+
+        return shapes;
     }
 
     private static Dictionary<uint, uint[]> ReadRelations(byte[] raw)

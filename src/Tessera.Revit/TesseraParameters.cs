@@ -6,15 +6,24 @@ namespace Tessera.Revit;
 
 internal sealed class TesseraParameterValue
 {
+    public required string Set { get; init; }
     public required string Name { get; init; }
     public string? Text { get; init; }
     public double? Si { get; init; }
     public string? IfcType { get; init; }
 }
 
+/// <summary>
+/// Revit parameters, laid out as Revit's IFC exporter writes them with "Export Revit
+/// property sets" on: instance parameters in <c>PSet_Revit_&lt;group&gt;</c>, type parameters
+/// in <c>PSet_Revit_Type_&lt;group&gt;</c> on the type object. Tessera's mapping recognises a
+/// Revit export by these sets and leaves them out of clean IFC.
+/// </summary>
 internal static class TesseraParameters
 {
-    private const int MaxParameters = 48;
+    public const string InstancePrefix = "PSet_Revit_";
+    public const string TypePrefix = "PSet_Revit_Type_";
+    private const string OtherGroup = "Other";
 
     private static readonly string[] LevelParameterNames =
     {
@@ -25,28 +34,45 @@ internal static class TesseraParameters
         "Schedule Level"
     };
 
+    /// <summary>An element's own parameters, plus its Revit identity.</summary>
     public static void Collect(Element element, ICollection<TesseraParameterValue> target)
     {
-        Add(target, TesseraKeys.RevitUniqueId, element.UniqueId);
-        Add(target, TesseraKeys.RevitElementId, element.Id.Value.ToString(CultureInfo.InvariantCulture));
+        var other = InstancePrefix + OtherGroup;
+        Add(target, other, TesseraKeys.RevitUniqueId, element.UniqueId);
+        Add(target, other, TesseraKeys.RevitElementId, element.Id.Value.ToString(CultureInfo.InvariantCulture));
         if (element.Category != null)
         {
-            Add(target, TesseraKeys.RevitCategory, element.Category.Name);
+            Add(target, other, TesseraKeys.RevitCategory, element.Category.Name);
         }
 
-        if (element is FamilyInstance instance && instance.Symbol != null)
-        {
-            Add(target, TesseraKeys.TypeName, instance.Symbol.Name);
-            AddParameters(instance.Symbol, target, "Type.");
-        }
-        else if (element.Document.GetElement(element.GetTypeId()) is ElementType systemType)
-        {
-            // System families (walls, floors, roofs, ...) have a type too; Tessera's
-            // type queries and schedules group by it.
-            Add(target, TesseraKeys.TypeName, systemType.Name);
-        }
+        AddParameters(element, target, InstancePrefix);
+    }
 
-        AddParameters(element, target, string.Empty);
+    /// <summary>A type's parameters, for its type object.</summary>
+    public static void CollectType(ElementType type, ICollection<TesseraParameterValue> target)
+    {
+        Add(target, TypePrefix + OtherGroup, TesseraKeys.RevitUniqueId, type.UniqueId);
+        Add(target, TypePrefix + OtherGroup, TesseraKeys.RevitElementId, type.Id.Value.ToString(CultureInfo.InvariantCulture));
+        AddParameters(type, target, TypePrefix);
+    }
+
+    /// <summary>The element's type (family symbol or system family type), if it has one.</summary>
+    public static ElementType? TypeOf(Element element)
+    {
+        try
+        {
+            if (element is FamilyInstance instance && instance.Symbol != null)
+            {
+                return instance.Symbol;
+            }
+
+            var id = element.GetTypeId();
+            return id == null || id == ElementId.InvalidElementId ? null : element.Document.GetElement(id) as ElementType;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static Level? FindLevel(Element element)
@@ -87,23 +113,27 @@ internal static class TesseraParameters
 
     private static void AddParameters(Element element, ICollection<TesseraParameterValue> target, string prefix)
     {
-        var added = target.Count;
         foreach (Parameter parameter in element.Parameters)
         {
-            if (target.Count - added >= MaxParameters || parameter == null || !parameter.HasValue)
+            if (parameter == null || !parameter.HasValue)
             {
                 continue;
             }
 
-            var name = prefix + parameter.Definition?.Name;
-            if (string.IsNullOrWhiteSpace(name) || name == prefix + "Type Id" || target.Any(item => item.Name == name))
+            var name = parameter.Definition?.Name;
+            if (string.IsNullOrWhiteSpace(name) || name == "Type Id")
             {
                 continue;
             }
 
+            var set = prefix + GroupLabel(parameter);
             if (TryMeasure(parameter, out var si, out var ifcType))
             {
-                target.Add(new TesseraParameterValue { Name = name, Si = si, IfcType = ifcType });
+                if (!target.Any(item => item.Set == set && item.Name == name))
+                {
+                    target.Add(new TesseraParameterValue { Set = set, Name = name, Si = si, IfcType = ifcType });
+                }
+
                 continue;
             }
 
@@ -121,7 +151,27 @@ internal static class TesseraParameters
                 // Skip parameters Revit refuses to read.
             }
 
-            Add(target, name, value);
+            Add(target, set, name, value);
+        }
+    }
+
+    /// <summary>The parameter's group as Revit shows it ("Identity Data", "Dimensions", ...), "Other" if none.</summary>
+    private static string GroupLabel(Parameter parameter)
+    {
+        try
+        {
+            var group = parameter.Definition?.GetGroupTypeId();
+            if (group == null || string.IsNullOrEmpty(group.TypeId))
+            {
+                return OtherGroup;
+            }
+
+            var label = LabelUtils.GetLabelForGroup(group);
+            return string.IsNullOrWhiteSpace(label) ? OtherGroup : label;
+        }
+        catch
+        {
+            return OtherGroup;
         }
     }
 
@@ -166,13 +216,13 @@ internal static class TesseraParameters
         return false;
     }
 
-    private static void Add(ICollection<TesseraParameterValue> target, string key, string? value)
+    private static void Add(ICollection<TesseraParameterValue> target, string set, string key, string? value)
     {
-        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value) || target.Any(item => item.Name == key))
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value) || target.Any(item => item.Set == set && item.Name == key))
         {
             return;
         }
 
-        target.Add(new TesseraParameterValue { Name = key, Text = value });
+        target.Add(new TesseraParameterValue { Set = set, Name = key, Text = value });
     }
 }
