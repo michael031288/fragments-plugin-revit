@@ -19,3 +19,8 @@ src/Fragments.Revit.Installer/payload.zip
 .idea/
 *.DS_Store
 *.log
+tools/batch/input/*
+tools/batch/output/*
+!tools/batch/input/.keep
+!tools/batch/output/.keep
+tools/batch/addin/

@@ -39,6 +39,12 @@ internal static class TesseraParameters
             Add(target, TesseraKeys.TypeName, instance.Symbol.Name);
             AddParameters(instance.Symbol, target, "Type.");
         }
+        else if (element.Document.GetElement(element.GetTypeId()) is ElementType systemType)
+        {
+            // System families (walls, floors, roofs, ...) have a type too; Tessera's
+            // type queries and schedules group by it.
+            Add(target, TesseraKeys.TypeName, systemType.Name);
+        }
 
         AddParameters(element, target, string.Empty);
     }

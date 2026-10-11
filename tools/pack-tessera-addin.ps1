@@ -7,8 +7,10 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $revitProject = Join-Path $root "src\Tessera.Revit\Tessera.Revit.csproj"
 $artifacts = Join-Path $root "artifacts\tessera"
+$batch = Join-Path $artifacts "batch"
 
 New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
+if (Test-Path $batch) { Remove-Item $batch -Recurse -Force }
 
 $successfulYears = @()
 
@@ -78,8 +80,28 @@ foreach ($year in $RevitYears) {
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
     Compress-Archive -Path (Join-Path $packageYearDir "*") -DestinationPath $zipPath -Force
 
+    # Folder-conversion kit (tools\batch) carries its own copy of the add-in per year.
+    $batchAddin = Join-Path $batch "addin\$year"
+    New-Item -ItemType Directory -Force -Path $batchAddin | Out-Null
+    Copy-Item $packagePluginDir $batchAddin -Recurse -Force
+
     $successfulYears += $year
     Write-Host "Created package and zip for Revit $year in $packageYearDir"
+}
+
+if ($successfulYears.Count -gt 0) {
+    $kit = Join-Path $root "tools\batch"
+    foreach ($item in "Convert.bat", "Convert.ps1", "config.json", "README.md") {
+        Copy-Item (Join-Path $kit $item) $batch -Force
+    }
+    foreach ($dir in "input", "output") {
+        New-Item -ItemType Directory -Force -Path (Join-Path $batch $dir) | Out-Null
+        Set-Content -Path (Join-Path $batch "$dir\.keep") -Value ""
+    }
+    $batchZip = Join-Path $artifacts ("Tessera.Batch-" + ($successfulYears -join "-") + ".zip")
+    if (Test-Path $batchZip) { Remove-Item $batchZip -Force }
+    Compress-Archive -Path (Join-Path $batch "*") -DestinationPath $batchZip -Force
+    Write-Host "Created folder-conversion kit $batchZip"
 }
 
 Write-Host ""

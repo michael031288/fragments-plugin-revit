@@ -7,6 +7,9 @@ public sealed class App : IExternalApplication
 {
     public Result OnStartup(UIControlledApplication application)
     {
+        // Folder conversion (tools\batch): inert unless Revit was started with a job file.
+        BatchExport.Attach(application);
+
         var panel = application.CreateRibbonPanel("Tessera");
         var button = new PushButtonData(
             "ExportTessera",
