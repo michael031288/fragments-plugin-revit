@@ -43,6 +43,8 @@ internal sealed class TesseraExportContext : IExportContext
 
     public uint Project => _project;
 
+    public uint Site => _site;
+
     public int ElementCount { get; private set; }
 
     public bool IsCanceled() => false;

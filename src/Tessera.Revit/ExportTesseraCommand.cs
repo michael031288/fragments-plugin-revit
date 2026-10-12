@@ -49,7 +49,7 @@ public sealed class ExportTesseraCommand : IExternalCommand
             var summary = TesseraRevitExporter.Export(uiDoc.Document, view, dialog.FileName, options.Settings);
             Autodesk.Revit.UI.TaskDialog.Show(
                 "Tessera",
-                $"Exported {summary.ElementCount} elements, {summary.TriangleCount} triangles\n{summary.FileBytes:N0} bytes\n\n{summary.File}");
+                $"Exported {summary.ElementCount} elements, {summary.TriangleCount} triangles\n{summary.FileBytes:N0} bytes\n\n{summary.Placement.Replace("; ", "\n")}\n\n{summary.File}");
             return Result.Succeeded;
         }
         catch (Exception ex)
