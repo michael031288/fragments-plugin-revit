@@ -75,7 +75,8 @@ internal static class BatchExport
         try
         {
             var app = (RevitApplication)sender!;
-            Log($"Revit {app.VersionNumber}, detail {job.Detail}, {(job.SharedCoordinates ? "shared" : "project")} coordinates");
+            var coordinates = TesseraExportSettings.ParseCoordinates(job.Coordinates);
+            Log($"Revit {app.VersionNumber}, detail {job.Detail}, {TesseraExportSettings.Describe(coordinates)}");
             foreach (var model in job.Models)
             {
                 var result = new BatchResult { Model = model };
@@ -136,16 +137,19 @@ internal static class BatchExport
                     "view" => -1,
                     _ => 8
                 },
-                UseSharedCoordinates = job.SharedCoordinates
+                Coordinates = TesseraExportSettings.ParseCoordinates(job.Coordinates),
+                Crs = job.Crs
             });
             File.Move(temp, final, overwrite: true); // an existing .tsra is only replaced by a finished one
             Log($"  OK -> {final} ({summary.ElementCount} elements, {summary.TriangleCount} triangles, {summary.FileBytes / 1048576.0:F1} MB)");
+            Log("  Placement: " + summary.Placement);
             return new TesseraExportSummary
             {
                 ElementCount = summary.ElementCount,
                 TriangleCount = summary.TriangleCount,
                 FileBytes = summary.FileBytes,
-                File = final
+                File = final,
+                Placement = summary.Placement
             };
         }
         finally
@@ -219,7 +223,11 @@ internal static class BatchExport
         public string OutDir { get; set; } = "";
         public List<string> Models { get; set; } = [];
         public string Detail { get; set; } = "medium";
-        public bool SharedCoordinates { get; set; }
+        /// <summary>shared (default), project or internal.</summary>
+        public string? Coordinates { get; set; }
+
+        /// <summary>Map coordinate system name, e.g. EPSG:27700; empty for the model's own.</summary>
+        public string? Crs { get; set; }
         public string? ViewName { get; set; }
     }
 

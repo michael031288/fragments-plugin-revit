@@ -22,7 +22,7 @@ Output `.frag` files load directly in That Open viewers via `fragments.load(byte
 - Aggregates and contained-in relations, plus Revit parameters laid out as Revit's IFC exporter writes them: instance parameters in `PSet_Revit_<group>` sets, type parameters on the type object in `PSet_Revit_Type_<group>` sets (elements inherit them), and the ElementId as each element's and type's IFC `Tag`. Tessera's mapping (ADR 0037) works on the `.tsra` as it does on a Revit IFC export. Lengths, areas, and volumes are stored in SI; other parameters stay text
 - Material colors, or the class color when Revit has no material (walls orange, windows red, roofs magenta, stairs green)
 - Mesh detail: coarse (LoD 2), medium (LoD 8), fine (LoD 15), or whatever the active view is using
-- Project coordinates by default, so the model stays near the origin. Shared coordinates can be baked in. The survey point is stored on the project either way
+- Shared coordinates by default (measured from the Survey Point), so models from different disciplines line up when opened together; the Project Base Point or internal origin can be chosen instead. Either way the site carries where the model sits in shared coordinates as an `ePSet_MapConversion` (eastings, northings, height, rotation), as Tessera's compiler records an IFC map conversion, with `ePSet_ProjectedCRS` when a coordinate system is set or Revit's location has one
 - Full-detail render chunks and canonical blobs. Level-of-detail proxy meshes are not written
 
 The meshlet and canonical codecs are meshoptimizer 0.25, the same sources Tessera's `meshopt` 0.6.2 crate links. `meshoptimizer.dll` and `blake3_dotnet.dll` (Blake3's native library) have to sit next to `Tessera.Core.dll`.

@@ -5,12 +5,7 @@ namespace Tessera.Revit;
 internal sealed class ExportTesseraForm : Form
 {
     private readonly ComboBox _quality = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280 };
-    private readonly CheckBox _shared = new()
-    {
-        Text = "Bake shared coordinates into the model. Leave off to keep geometry in project coordinates.",
-        AutoSize = true,
-        MaximumSize = new Size(460, 0)
-    };
+    private readonly ComboBox _coordinates = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280 };
 
     public ExportTesseraForm()
     {
@@ -31,6 +26,14 @@ internal sealed class ExportTesseraForm : Form
             "Match the active view"
         });
         _quality.SelectedIndex = 0;
+
+        _coordinates.Items.AddRange(new object[]
+        {
+            "Shared coordinates (Survey Point)",
+            "Project Base Point",
+            "Internal origin"
+        });
+        _coordinates.SelectedIndex = 0;
 
         var ok = new Button { Text = "Export...", DialogResult = DialogResult.OK, AutoSize = true };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
@@ -61,8 +64,11 @@ internal sealed class ExportTesseraForm : Form
         layout.Controls.Add(new Label { Text = "Mesh detail", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 8, 12, 0) }, 0, row);
         _quality.Margin = new Padding(0, 4, 0, 0);
         layout.Controls.Add(_quality, 1, row);
-        layout.Controls.Add(_shared, 0, 1);
-        layout.SetColumnSpan(_shared, 2);
+        row = layout.RowCount++;
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.Controls.Add(new Label { Text = "Coordinates", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 8, 12, 0) }, 0, row);
+        _coordinates.Margin = new Padding(0, 4, 0, 0);
+        layout.Controls.Add(_coordinates, 1, row);
         layout.Controls.Add(buttons, 0, 2);
         layout.SetColumnSpan(buttons, 2);
         Controls.Add(layout);
@@ -77,6 +83,11 @@ internal sealed class ExportTesseraForm : Form
             3 => -1,
             _ => 8
         },
-        UseSharedCoordinates = _shared.Checked
+        Coordinates = _coordinates.SelectedIndex switch
+        {
+            1 => TesseraCoordinateBase.ProjectBasePoint,
+            2 => TesseraCoordinateBase.Internal,
+            _ => TesseraCoordinateBase.Shared
+        }
     };
 }

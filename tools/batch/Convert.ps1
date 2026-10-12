@@ -93,7 +93,8 @@ $Job = Join-Path $OutDir "_job.json"
     out_dir            = $OutDir
     models             = @($Models.FullName)
     detail             = [string]$Cfg.detail
-    shared_coordinates = [bool]$Cfg.shared_coordinates
+    coordinates        = if ($Cfg.coordinates) { [string]$Cfg.coordinates } else { "shared" }
+    crs                = [string]$Cfg.crs
     view_name          = [string]$Cfg.view_name
 } | ConvertTo-Json -Depth 4 | Set-Content -Path $Job -Encoding UTF8
 $Summary = Join-Path $OutDir "_last_run.json"

@@ -1,7 +1,8 @@
 {
   "revit_year": "2025",
   "detail": "medium",
-  "shared_coordinates": false,
+  "coordinates": "shared",
+  "crs": "",
   "view_name": "",
   "timeout_minutes_per_model": 30
 }

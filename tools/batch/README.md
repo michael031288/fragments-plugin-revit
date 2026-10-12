@@ -12,7 +12,10 @@ Revit opens in the background, exports each model with the Tessera.Revit exporte
 | Setting | Default | |
 |---|---|---|
 | `detail` | `medium` | Mesh detail: `coarse` (Revit 2), `medium` (8), `fine` (15) or `view` (each view's own setting) |
-| `shared_coordinates` | `false` | Bake shared coordinates into the geometry (project coordinates otherwise; the survey point is stored either way) |
+| `coordinates` | `shared` | Where the geometry is measured from: `shared` (shared coordinates, from the Survey Point: the real-world system every discipline's model shares, so models line up when opened together), `project` (the Project Base Point, along project north) or `internal` (Revit's internal origin) |
+| `crs` | empty | The map's coordinate system, e.g. `EPSG:27700` for the British National Grid. Empty: the one Revit's location carries, if any |
+
+Whichever you choose, the export also records where the model sits in shared coordinates, the way an IFC export's map conversion does, so Tessera's Point measure shows both x, y, z and eastings / northings / height. `output\_export_log.txt` has a `Placement:` line per model with the model origin's eastings, northings and height: check them against the Survey Point in Revit.
 | `view_name` | empty | 3D view to export. Empty means `{3D}`, else the first 3D view, else a temporary isometric view |
 | `timeout_minutes_per_model` | `30` | Give up on Revit after this long per model |
 
